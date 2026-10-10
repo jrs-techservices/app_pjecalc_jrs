@@ -1,0 +1,46 @@
+# --- Segredos e ambiente local ---
+.env
+env/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+
+# --- Dados e saídas das execuções (ficam só na máquina do serviço) ---
+db-sqlite/*
+logs/*
+diagnostico/**
+downloads/*
+*.PJC
+*.pjc
+
+# --- Arquivos de trabalho que a automação recria a cada execução ---
+faltas.csv
+ferias.csv
+log.txt
+source_plan.txt
+historico_salarial_importar.csv
+*_automacao_pedido.xlsx
+*_automacao_verbas.xlsx
+geckodriver.log
+
+# --- Build antiga e binários ---
+executaveis/
+*.exe
+*.rar
+
+# --- Editor e sistema ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# --- Exceções: o que precisa ir para o repositório ---
+!.env.example
+# mantém a estrutura das pastas de execução (vazias no repositório)
+!db-sqlite/.gitkeep
+!logs/.gitkeep
+!diagnostico/
+!diagnostico/falhas/
+!diagnostico/falhas/.gitkeep
+!downloads/.gitkeep

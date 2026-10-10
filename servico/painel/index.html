@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel PJe-Calc</title>
+<link rel="stylesheet" href="/painel/painel.css">
+</head>
+<body>
+
+<header class="topo">
+  <div class="marca">
+    <span class="marca-sigla">PJC</span>
+    <div>
+      <h1>Automação PJe-Calc</h1>
+      <p class="sub">Execuções em tempo real</p>
+    </div>
+  </div>
+  <div class="saude" id="saude" aria-live="polite"></div>
+  <div class="acoes-topo">
+    <label class="token">
+      <span>Token</span>
+      <input id="token" type="password" autocomplete="off" placeholder="X-API-Token">
+    </label>
+    <label class="auto"><input id="auto" type="checkbox" checked> Tempo real</label>
+    <button class="btn secundario" id="btn-docs" type="button">Documentação da API</button>
+    <button class="btn primario" id="btn-novo" type="button">Novo cálculo</button>
+  </div>
+</header>
+
+<main class="casco">
+  <div class="aviso" id="aviso" hidden></div>
+
+  <section class="cards" id="cards" aria-label="Indicadores"></section>
+
+  <section class="filtros" aria-label="Filtros">
+    <label>Situação
+      <select id="f-situacao">
+        <option value="">Todas</option>
+        <option value="na_fila">Na fila</option>
+        <option value="executando">Executando</option>
+        <option value="concluido">Concluído</option>
+        <option value="falhou">Falhou</option>
+        <option value="cancelado">Cancelado</option>
+      </select>
+    </label>
+    <label>Modo
+      <select id="f-modo">
+        <option value="">Todos</option>
+        <option value="completo">Completo (base + verbas)</option>
+        <option value="base">Só planilha base</option>
+        <option value="verbas">Só verbas</option>
+      </select>
+    </label>
+    <label class="cresce">Busca
+      <input id="f-busca" type="search" placeholder="ID, processo, caminho, solicitante, mensagem">
+    </label>
+    <label>De <input id="f-de" type="date"></label>
+    <label>Até <input id="f-ate" type="date"></label>
+    <label>Por página
+      <select id="f-limite">
+        <option>10</option><option selected>20</option><option>50</option><option>100</option>
+      </select>
+    </label>
+    <button class="btn fantasma" id="f-limpar" type="button">Limpar</button>
+  </section>
+
+  <section class="tabela-caixa">
+    <div class="tabela-rolo">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Situação</th><th>Modo</th><th>Navegador</th><th>Processo</th><th>Solicitante</th>
+            <th>Origem</th><th>Criado em</th><th class="num">Duração</th><th>Mensagem</th><th>Arquivos</th>
+          </tr>
+        </thead>
+        <tbody id="linhas"></tbody>
+      </table>
+    </div>
+    <footer class="paginacao">
+      <span id="pag-info"></span>
+      <div class="pag-botoes">
+        <button class="btn fantasma" id="pag-primeira" type="button" aria-label="Primeira página">«</button>
+        <button class="btn fantasma" id="pag-anterior" type="button" aria-label="Página anterior">‹</button>
+        <span id="pag-atual"></span>
+        <button class="btn fantasma" id="pag-proxima" type="button" aria-label="Próxima página">›</button>
+        <button class="btn fantasma" id="pag-ultima" type="button" aria-label="Última página">»</button>
+      </div>
+      <span class="atualizado" id="atualizado"></span>
+    </footer>
+  </section>
+</main>
+
+<aside class="gaveta" id="gaveta" hidden aria-label="Detalhe da execução">
+  <header class="gaveta-topo">
+    <div>
+      <span class="rotulo">Execução</span>
+      <h2 id="d-id"></h2>
+    </div>
+    <div class="gaveta-acoes">
+      <button class="btn perigo" id="d-cancelar" type="button" hidden>Cancelar</button>
+      <button class="btn fantasma" id="d-fechar" type="button" aria-label="Fechar">✕</button>
+    </div>
+  </header>
+  <dl class="detalhes" id="d-campos"></dl>
+  <div class="bloco" id="d-arquivos-bloco" hidden>
+    <h3>Arquivos gerados</h3>
+    <ul class="arquivos" id="d-arquivos"></ul>
+  </div>
+  <div class="bloco" id="d-captura-bloco" hidden>
+    <h3>Captura da falha</h3>
+    <button class="miniatura" id="d-captura" type="button" title="Ampliar a captura">
+      <img id="d-captura-img" alt="Captura de tela no momento da falha">
+    </button>
+  </div>
+  <div class="bloco" id="d-lancamentos-bloco" hidden>
+    <h3>Lançamentos (.json) <span class="rotulo" id="d-lancamentos-info"></span></h3>
+    <div class="lancamentos" id="d-lancamentos"></div>
+  </div>
+  <div class="bloco" id="d-erro-bloco" hidden>
+    <h3>Erro técnico</h3>
+    <pre class="erro-tecnico" id="d-erro"></pre>
+  </div>
+  <div class="bloco cresce-bloco">
+    <h3>Log <span class="rotulo" id="d-log-info"></span>
+      <label class="seguir"><input id="d-seguir" type="checkbox" checked> seguir o fim</label>
+    </h3>
+    <pre class="log" id="d-log"></pre>
+  </div>
+</aside>
+
+<div class="modal-fundo" id="modal-novo" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="novo-titulo">
+    <header class="modal-topo">
+      <h2 id="novo-titulo">Novo cálculo</h2>
+      <button class="btn fantasma" data-fechar type="button" aria-label="Fechar">✕</button>
+    </header>
+    <div class="modal-corpo">
+      <p class="dica">Cole ou edite o JSON do pedido. Os caminhos são lidos no disco da máquina onde o serviço roda.
+        Informe <code>planilha_base</code>, <code>planilha_verbas</code> ou as duas.</p>
+      <div class="modelos">
+        <span class="rotulo">Modelos</span>
+        <button class="btn fantasma" data-modelo="completo" type="button">Completo (base + verbas)</button>
+        <button class="btn fantasma" data-modelo="base" type="button">Só base</button>
+        <button class="btn fantasma" data-modelo="verbas" type="button">Só verbas</button>
+        <button class="btn fantasma" id="novo-formatar" type="button">Formatar JSON</button>
+      </div>
+      <label class="campo-json">JSON do pedido
+        <textarea id="novo-json" spellcheck="false" rows="12"></textarea>
+      </label>
+      <p class="validacao" id="novo-validacao" aria-live="polite"></p>
+      <fieldset class="navegador-opcoes">
+        <legend>Navegador da automação <span class="opcional">(campo <code>navegador</code> do JSON)</span></legend>
+        <label><input type="radio" name="novo-navegador" value="oculto" checked> Oculto (padrão)</label>
+        <label><input type="radio" name="novo-navegador" value="interativo"> Interativo: a janela do Firefox aparece na máquina do serviço</label>
+      </fieldset>
+      <label class="campo-linha">Idempotency-Key <span class="opcional">(opcional; a mesma chave devolve a mesma execução)</span>
+        <input id="novo-chave" type="text" autocomplete="off" maxlength="200">
+      </label>
+      <div class="resultado" id="novo-resultado" hidden></div>
+    </div>
+    <footer class="modal-rodape">
+      <button class="btn fantasma" data-fechar type="button">Fechar</button>
+      <button class="btn primario" id="novo-enviar" type="button">Enviar para a fila</button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-fundo" id="modal-console" hidden>
+  <div class="modal console" role="dialog" aria-modal="true" aria-labelledby="console-titulo">
+    <header class="modal-topo console-topo">
+      <div class="console-titulo">
+        <h2 id="console-titulo">Console <span class="mono" id="console-id"></span></h2>
+        <span id="console-status"></span>
+        <span class="etiqueta" id="console-processo"></span>
+      </div>
+      <div class="gaveta-acoes">
+        <label class="seguir"><input id="console-seguir" type="checkbox" checked> seguir o fim</label>
+        <button class="btn fantasma" id="console-copiar" type="button">Copiar log</button>
+        <button class="btn fantasma" data-fechar type="button" aria-label="Fechar">✕</button>
+      </div>
+    </header>
+    <pre class="console-log" id="console-log" aria-live="polite"></pre>
+    <footer class="console-rodape">
+      <span id="console-tempo"></span>
+      <span id="console-linhas"></span>
+      <span id="console-atualizado"></span>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-fundo" id="modal-captura" hidden>
+  <div class="modal largo" role="dialog" aria-modal="true" aria-labelledby="captura-titulo">
+    <header class="modal-topo">
+      <h2 id="captura-titulo">Captura da falha</h2>
+      <div class="gaveta-acoes">
+        <button class="btn fantasma" id="captura-nova-aba" type="button">Abrir em nova aba</button>
+        <button class="btn primario" id="captura-baixar" type="button">Baixar PNG</button>
+        <button class="btn fantasma" data-fechar type="button" aria-label="Fechar">✕</button>
+      </div>
+    </header>
+    <div class="modal-corpo captura-corpo">
+      <p class="dica" id="captura-info"></p>
+      <img id="captura-img" alt="Captura de tela no momento da falha">
+    </div>
+  </div>
+</div>
+
+<div class="modal-fundo" id="modal-docs" hidden>
+  <div class="modal largo" role="dialog" aria-modal="true" aria-labelledby="docs-titulo">
+    <header class="modal-topo">
+      <h2 id="docs-titulo">Documentação da API</h2>
+      <button class="btn fantasma" data-fechar type="button" aria-label="Fechar">✕</button>
+    </header>
+    <nav class="abas" id="docs-abas" role="tablist"></nav>
+    <div class="modal-corpo docs" id="docs-corpo"></div>
+  </div>
+</div>
+
+<script src="/painel/painel.js"></script>
+</body>
+</html>
