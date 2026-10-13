@@ -45,7 +45,7 @@ dos valores aceitos está no [VALORES-ACEITOS-PJECALC.md](VALORES-ACEITOS-PJECAL
 | `zerar_valor_negativo` | `zeraValorNegativo` | booleano |
 | `feriados_estaduais` / `feriados_municipais` | `consideraFeriadoEstadual` / `consideraFeriadoMunicipal` | booleano |
 | `regime` | `regimeDoContrato` | `Tempo Integral` → `INTEGRAL` (visto); `Tempo Parcial` → `PARCIAL` e `Trabalho Intermitente` → `INTERMITENTE` (**a confirmar**) |
-| `prazo_aviso_previo` | `apuracaoPrazoDoAvisoPrevio` | `Não apurar` → `NAO_APURAR` (visto); `Calculado` → `CALCULADO`, `Informado` → `INFORMADO` (**a confirmar**) |
+| `prazo_aviso_previo` | `apuracaoPrazoDoAvisoPrevio` | `Não apurar` → `NAO_APURAR` e `Informado` → `APURACAO_INFORMADA` (vistos); `Calculado` → `APURACAO_CALCULADA` (**a confirmar**) |
 | `dias_aviso_previo` | `prazoAvisoInformado` | inteiro; `null` se o prazo não é `Informado` |
 | `comentarios` | `comentarios` | maiúsculas; o `.json` pode ter mais de 255 caracteres e a automação corta |
 
@@ -114,7 +114,7 @@ As verbas principais **não ficam numa lista própria**: `verbas/Set` traz os **
 |---|---|---|
 | `fgts.destino` · `telas.fgts.fgts_destino` | `fgts/Fgts/destinoDoFgts` | `RECOLHER` → `DEPOSITAR` (visto); `PAGAR` → **a confirmar** |
 | `fgts.multaDoFgts` · `fgts_calcular_multa` | `fgts/Fgts/multa` | booleano |
-| CNAE (`atividadeEconomica` · `cs_atividade_economica`) | `inss/Inss/tipoAliquotaEmpregador = POR_ATIVIDADE_ECONOMICA` + `apurarEmpresaPorAtividade`/`apurarRATPorAtividade` | **a atividade em si não fica no `.PJC`** (só as alíquotas mês a mês): confira só que o tipo é por atividade |
+| CNAE (`atividadeEconomica` · `cs_atividade_economica`) | `inss/Inss/atividadeEconomica/AtividadeEconomica/externalRef` (+ `tipoAliquotaEmpregador = POR_ATIVIDADE_ECONOMICA`) | id da atividade na tabela do PJe-Calc 2.16.0 (ex.: `505` = "Fornecimento de alimentos preparados preponderantemente para empresas"); traduza pela tabela de atividades e compare a descrição. `null` = nenhuma atividade gravada (ex.: CNAE não encontrada) |
 | `cj_correcao` | `parametrosDeAtualizacao/ParametrosDeAtualizacao/indiceTrabalhista` | `IPCA-E` → `IPCAE` (visto); demais **a confirmar** (o texto da tela sem pontuação, em maiúsculas) |
 | `custas.tipoDeCustasDeConhecimentoDoReclamado` | `custasJudiciais/CustasJudiciais/tipoDeCustasDeConhecimentoDoReclamado` | mesmo código |
 | `custas.dataVencimentoConhecimentoDoReclamado` / `valorConhecimentoDoReclamado` | `…/dataVencimentoConhecimentoDoReclamado` / `valorConhecimentoDoReclamado` | epoch ms; número (com `CALCULADA_2_POR_CENTO` o valor é calculado pelo PJe-Calc) |
@@ -131,7 +131,6 @@ As verbas principais **não ficam numa lista própria**: `verbas/Set` traz os **
 | campo do `.json` | por quê |
 |---|---|
 | `verbas[].expresso` | o `.PJC` não guarda o item do Lançamento Expresso |
-| atividade econômica (CNAE) | só ficam o tipo "por atividade" e as alíquotas mês a mês |
 | `uf` / `municipio` | `municipio/Municipio/externalRef` é o código interno do PJe-Calc (ex.: `9701`), não o nome |
 | pontos facultativos | `pontosFacultativos/Set/ItemPontoFacultativo/pontoFacultativo/Feriado/externalRef` é um identificador interno |
 | advogados das partes | o `.json` não os envia |

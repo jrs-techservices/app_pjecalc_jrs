@@ -173,7 +173,7 @@
    "secao": "2. Dados do Cálculo — `Calculo/…`",
    "json": "prazo_aviso_previo",
    "xml": "apuracaoPrazoDoAvisoPrevio",
-   "traducao": "Não apurar → NAO_APURAR (visto); Calculado → CALCULADO, Informado → INFORMADO (a confirmar)",
+   "traducao": "Não apurar → NAO_APURAR e Informado → APURACAO_INFORMADA (vistos); Calculado → APURACAO_CALCULADA (a confirmar)",
    "a_confirmar": true,
    "conferivel": true
   },
@@ -532,8 +532,8 @@
   {
    "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
    "json": "CNAE (atividadeEconomica · cs_atividade_economica)",
-   "xml": "inss/Inss/tipoAliquotaEmpregador = POR_ATIVIDADE_ECONOMICA + apurarEmpresaPorAtividade/apurarRATPorAtividade",
-   "traducao": "a atividade em si não fica no .PJC (só as alíquotas mês a mês): confira só que o tipo é por atividade",
+   "xml": "inss/Inss/atividadeEconomica/AtividadeEconomica/externalRef",
+   "traducao": "id da atividade na tabela do PJe-Calc 2.16.0 (505 = Fornecimento de alimentos preparados preponderantemente para empresas); null = nenhuma gravada",
    "a_confirmar": false,
    "conferivel": true
   },
@@ -622,14 +622,6 @@
    "json": "verbas[].expresso",
    "xml": "",
    "traducao": "o .PJC não guarda o item do Lançamento Expresso",
-   "a_confirmar": false,
-   "conferivel": false
-  },
-  {
-   "secao": "6. O que não dá para conferir no `.PJC`",
-   "json": "atividade econômica (CNAE)",
-   "xml": "",
-   "traducao": "só ficam o tipo \"por atividade\" e as alíquotas mês a mês",
    "a_confirmar": false,
    "conferivel": false
   },
