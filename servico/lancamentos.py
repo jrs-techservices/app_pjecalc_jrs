@@ -9,7 +9,7 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from servico import config
@@ -309,6 +309,9 @@ def _honorarios(r):
             r.erro(f"{base}.tipoValor", item.get("tipoValor"), "valor não reconhecido", ["INFORMADO", "CALCULADO"])
             continue
         descricao = str(item.get("descricao") or "").strip()
+        if len(descricao) > 50:
+            r.avisos.append(f"{base}.descricao: tem {len(descricao)} caracteres; o PJe-Calc guarda os 50 primeiros "
+                            f"({descricao[:50].upper()!r})")
         if not descricao or "-" in descricao:
             r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória e sem '-' (a automação usa '-' para 'bloco vazio')")
             continue
@@ -377,6 +380,9 @@ def _multas(r):
                 r.erro(f"{base}.nomeTerceiro", item.get("nomeTerceiro"), "nome do terceiro obrigatório quando o credor/devedor é um terceiro")
         cobranca = r.enumeracao(f"{base}.tipoCobrancaReclamante", item.get("tipoCobrancaReclamante", "COBRAR"), COBRANCA)
         descricao = str(item.get("descricao") or "").strip()
+        if len(descricao) > 50:
+            r.avisos.append(f"{base}.descricao: tem {len(descricao)} caracteres; o PJe-Calc guarda os 50 primeiros "
+                            f"({descricao[:50].upper()!r})")
         if not descricao:
             r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória")
         vencimento, valor, base_multa, aliquota, juros_desde = "-", "-", "-", "-", "-"
@@ -528,6 +534,30 @@ def _ler_historico_csv(r, chave, caminho):
     return None if len(r.erros) > erros_antes else (nome, caminho)
 
 
+def _conferir_periodos_de_ferias(r, chave, caminho, linhas):
+    """O PJe-Calc recusa a importação inteira se um período aquisitivo terminar depois da demissão/data final
+    ("As férias definidas no arquivo não podem ser anterior a Data de Admissão e nem posterior a Data de Demissão/Data Final")."""
+    admissao = r.valores.get("data_admissao")
+    final = r.valores.get("termino_calculo") or r.valores.get("data_rescisao")
+    if not isinstance(admissao, int) or not isinstance(final, int):
+        return
+    d_admissao, d_final = ORIGEM_EXCEL + timedelta(days=admissao), ORIGEM_EXCEL + timedelta(days=final)
+    for numero, linha in enumerate(linhas, start=2):
+        achado = re.match(r"^(\d{4})/(\d{4})$", str(linha[0] or ""))
+        if not achado:
+            r.erro(f"arquivos.{chave}", caminho, f"linha {numero}: RELATIVAS {linha[0]!r}; use AAAA/AAAA")
+            continue
+        ano = int(achado.group(1))
+        dia = 28 if (d_admissao.month, d_admissao.day) == (2, 29) else d_admissao.day
+        inicio = datetime(ano, d_admissao.month, dia)
+        fim = datetime(ano + 1, d_admissao.month, dia) - timedelta(days=1)
+        if inicio < d_admissao or fim > d_final:
+            r.erro(f"arquivos.{chave}", caminho,
+                   f"linha {numero}: período aquisitivo {linha[0]} ({inicio:%d/%m/%Y} a {fim:%d/%m/%Y}) fora do contrato "
+                   f"({d_admissao:%d/%m/%Y} a {d_final:%d/%m/%Y}); o PJe-Calc recusa o arquivo inteiro. "
+                   "As férias proporcionais o PJe-Calc calcula sozinho: não as mande no .csv")
+
+
 def _arquivos(r, caminho_json):
     bloco = r.dados.get("arquivos")
     if not bloco:
@@ -571,6 +601,7 @@ def _arquivos(r, caminho_json):
         elif chave == "ferias":
             r.ferias = _ler_csv_da_tela(r, chave, caminho, CABECALHO_FERIAS, "RELATIVAS",
                                         ("G1INI", "G1FIM", "G2INI", "G2FIM", "G3INI", "G3FIM"))
+            _conferir_periodos_de_ferias(r, chave, caminho, r.ferias)
             r.usados.add(base)
         else:
             r.arquivos[chave] = caminho

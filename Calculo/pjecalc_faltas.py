@@ -75,7 +75,7 @@ class Faltas:
                     pass
                 # print('* ERRO!', msg)
                 gerar_relatorio('Faltas', '---------- Erro! ----------')
-                de_relatorio('Faltas')
+                de_relatorio('Faltas', msg)
         except TimeoutException:
             print('# - [Except][Faltas] - Elemento não encontrado/A Página demorou no carregamento. Encerrando...')
 

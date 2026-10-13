@@ -573,7 +573,7 @@
    "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
    "json": "honorarios[].descricao · tipoHonorario · tipoDeDevedor · nomeCredor",
    "xml": "honorarios/Set/Honorario/descricao · tipoHonorario · tipoDeDevedor · nomeCredor",
-   "traducao": "maiúsculas; mesmo código (RECLAMADO)",
+   "traducao": "maiúsculas; descrição cortada em 50 caracteres (compare os 50 primeiros); mesmo código",
    "a_confirmar": false,
    "conferivel": true
   },
@@ -605,8 +605,8 @@
    "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
    "json": "honorarios[].tipoCobrancaReclamante",
    "xml": "…/tipoCobrancaReclamante",
-   "traducao": "DESCONTAR → DESCONTAR_CREDITO; COBRAR → a confirmar",
-   "a_confirmar": true,
+   "traducao": "COBRAR -> COBRAR; DESCONTAR -> DESCONTAR_CREDITO. Só vale com devedor RECLAMANTE; com devedor reclamado o PJe-Calc grava DESCONTAR_CREDITO (não é divergência)",
+   "a_confirmar": false,
    "conferivel": true
   },
   {

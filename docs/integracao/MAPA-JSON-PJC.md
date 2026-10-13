@@ -119,11 +119,11 @@ As verbas principais **não ficam numa lista própria**: `verbas/Set` traz os **
 | `custas.tipoDeCustasDeConhecimentoDoReclamado` | `custasJudiciais/CustasJudiciais/tipoDeCustasDeConhecimentoDoReclamado` | mesmo código |
 | `custas.dataVencimentoConhecimentoDoReclamado` / `valorConhecimentoDoReclamado` | `…/dataVencimentoConhecimentoDoReclamado` / `valorConhecimentoDoReclamado` | epoch ms; número (com `CALCULADA_2_POR_CENTO` o valor é calculado pelo PJe-Calc) |
 | `custas.custasPagasDoReclamado[]` | `custasJudiciais/CustasJudiciais/…` (lista de custas recolhidas) | **a confirmar**: os dois cálculos lidos não têm custa recolhida lançada |
-| `honorarios[].descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | `honorarios/Set/Honorario/descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | maiúsculas; mesmo código (`RECLAMADO`) |
+| `honorarios[].descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | `honorarios/Set/Honorario/descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | maiúsculas; **descrição cortada em 50 caracteres** (compare os 50 primeiros); mesmo código (`RECLAMADO`, `RECLAMANTE`) |
 | `honorarios[].tipoValor` · `valor` · `dataVencimento` | `…/tipoValor` · `valor` · `dataVencimento` | número; epoch ms. Em `CALCULADO`, `valor` é o resultado |
 | `honorarios[].aliquota` | `…/aliquota` | **o `.json` usa fração (`0.15`), o XML usa percentual (`15.00`)** |
 | `honorarios[].baseParaApuracao` | `…/baseParaApuracao` | mesmo código (`BRUTO`, …) |
-| `honorarios[].tipoCobrancaReclamante` | `…/tipoCobrancaReclamante` | `DESCONTAR` → `DESCONTAR_CREDITO`; `COBRAR` → **a confirmar** |
+| `honorarios[].tipoCobrancaReclamante` | `…/tipoCobrancaReclamante` | `COBRAR` → `COBRAR`; `DESCONTAR` → `DESCONTAR_CREDITO` (vistos). **Só vale com devedor `RECLAMANTE`**: com devedor reclamado o campo não aparece e o PJe-Calc grava `DESCONTAR_CREDITO` — não é divergência |
 | `multas[]` | `multas/Set/…` | **a confirmar**: os dois cálculos lidos não têm multa lançada |
 
 ## 6. O que não dá para conferir no `.PJC`

@@ -70,7 +70,7 @@ class Ferias:
                     pass
                 # print('* ERRO!', mensagem.text)
                 gerar_relatorio('Ferias: Importação', '---------- Erro! ----------')
-                de_relatorio('Ferias: Importação')
+                de_relatorio('Férias (importação)', mensagem.text)
         except TimeoutException:
             print('# - [Except][Férias][1] - Elemento não encontrado/A Página demorou no carregamento. Encerrando...')
 
@@ -103,7 +103,7 @@ class Ferias:
                     pass
                 # print('* ERRO!', msg)
                 gerar_relatorio('Ferias', '---------- Erro! ----------')
-                de_relatorio('Ferias')
+                de_relatorio('Férias', msg)
 
         except TimeoutException:
             print('# - [Except][Férias][2] - Elemento não encontrado/A Página demorou no carregamento. Encerrando...')
@@ -168,6 +168,11 @@ class Ferias:
             else:
                 pass
         # GERAR CSV
+        # Coluna com célula vazia vira decimal no pandas ("0" -> "0.0") e o PJe-Calc recusa a linha: grava inteiro.
+        for coluna in ('PRAZO', 'QTD_DIAS_ABONO'):
+            if coluna in ferias_2.columns:
+                ferias_2[coluna] = ferias_2[coluna].map(
+                    lambda v: str(int(float(v))) if not pd.isna(v) and str(v).replace('.', '', 1).isdigit() and float(v).is_integer() else v)
         ferias_2.to_csv("ferias.csv", sep=';', index=False)
 
     def adicionar_arquivo_csv(self, driver):
