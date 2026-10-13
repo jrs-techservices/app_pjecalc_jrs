@@ -231,6 +231,7 @@ dentro das pastas permitidas. Arquivo inexistente ou com linha inválida: `400 l
   - cabeçalho: o PJe-Calc ignora os títulos. **Para a automação**, o título da **2ª coluna é o nome do histórico** (é o que ela
     digita no campo *Nome* e o que `bases[].referencia` casa); o título da 1ª coluna é livre (`DATA` ou `MES_ANO`).
     `VALOR` como título da 2ª coluna é recusado (é o genérico do exemplo, não um nome de parcela).
+- **Contribuição Social (salários pagos):** o PJe-Calc preenche a coluna *Salários Pagos (Histórico)* da Contribuição Social com a soma dos históricos marcados com **`CONTRIBUICAO_SOCIAL = S`** (testado na tela em 13/10/2026: com `S` no `SALARIO BASE`, 1.500,00 · 1.550,00 · 1.677,42…; com `N` em todos, usa a última remuneração). Marque `S` nas parcelas que compõem o salário de contribuição; `CONTRIBUICAO_SOCIAL_REC. = S` quando a contribuição daquele mês já foi recolhida. O mesmo vale para `FGTS`/`FGTS_REC.` na base do FGTS. Sem nenhum `S`: aviso no resumo e pendência `automacao` na execução.
 - Mais de um histórico: mande uma lista de caminhos em `historico-salarial`; os nomes (2ª coluna do cabeçalho) não podem se repetir.
 - Colunas das marcas podem faltar; competências fora do período do cálculo são aceitas pelo PJe-Calc.
 - **Com planilha base** no pedido, a planilha prevalece: faltas, férias e histórico do `.json` são ignorados (aviso no log).

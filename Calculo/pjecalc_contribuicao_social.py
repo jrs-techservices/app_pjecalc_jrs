@@ -18,6 +18,20 @@ from Calculo.leitura_planilha import (ler_pje_hist_val, booleano_da_planilha, va
 import pyautogui as pa
 
 
+def _historico_incide_cs(caminho):
+    """True se alguma competência do .csv de histórico tem CONTRIBUICAO_SOCIAL = S (5ª coluna)."""
+    try:
+        bruto = open(caminho, "rb").read()
+        texto = bruto.decode("utf-8-sig", errors="replace")
+    except (OSError, UnicodeDecodeError):
+        return False
+    for linha in texto.splitlines()[1:]:
+        celulas = [c.strip().upper() for c in linha.split(";")]
+        if len(celulas) > 4 and celulas[4] == "S":
+            return True
+    return False
+
+
 class ContribuicaoSocial:
 
 
@@ -704,7 +718,17 @@ class ContribuicaoSocial:
     def preencher_salarios_pagos_historico_v34(self, driver, admissao, rescisao, inicio_calculo, termino_calculo):
 
         if self.planilha_base_inss is None:
-            print('- [AVISO][Contribuição Social]: pedido sem histórico salarial; base do INSS dos salários pagos não lançada.')
+            # Pedido do .json: o PJe-Calc preenche "Salários Pagos (Histórico)" sozinho com os históricos marcados com
+            # incidência de Contribuição Social (coluna CONTRIBUICAO_SOCIAL = S do .csv). Sem nenhum, usa a última remuneração.
+            from Calculo.leitura_planilha import csvs_de_historico
+            from Tools.pendencias import registrar
+            marcados = [nome for nome, caminho in csvs_de_historico(self.source) if _historico_incide_cs(caminho)]
+            if marcados:
+                print(f"- [Contribuição Social]: salários pagos vêm dos históricos com incidência de CS: {', '.join(marcados)}")
+            else:
+                registrar("Contribuição Social", "nenhum histórico salarial com incidência de Contribuição Social (CONTRIBUICAO_SOCIAL = S "
+                          "no .csv): o PJe-Calc usa a última remuneração como salário pago, e o INSS do segurado sai sobre ela",
+                          origem="automacao")
             return
 
         print(

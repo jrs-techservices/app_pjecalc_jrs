@@ -61,6 +61,7 @@ dos valores aceitos está no [VALORES-ACEITOS-PJECALC.md](VALORES-ACEITOS-PJECAL
 | férias: `G1INI`…`G3FIM`, `G1DOBRA`… | `…/dataInicialDoPeriodoDeGozo1`…`dataFinalDoPeriodoDeGozo3`, `dobraDoPeriodoDeGozo1`… | epoch ms; booleano |
 | histórico: título da 2ª coluna | `historicosSalariais/Set/HistoricoSalarial/nome` | maiúsculas |
 | histórico: parcela variável | `…/tipoVariacaoParcela` = `VARIAVEL` | a automação sempre cria como variável |
+| histórico: incidência de CS / FGTS do `.csv` | `…/incidenciaINSS` · `incidenciaFGTS` (no histórico e em cada ocorrência) | `S`/`N` ↔ `true`/`false`; com `S` em CS, o PJe-Calc soma o histórico na coluna *Salários Pagos (Histórico)* da Contribuição Social |
 | histórico: cada linha `MM/AAAA;valor;FGTS;FGTS_REC.;CS;CS_REC.` | `…/ocorrencias/…/OcorrenciaDoHistoricoSalarial/{dataOcorrencia, valor, incidenciaFGTS, recolhidoFGTS, incidenciaINSS, recolhidoINSS}` | `dataOcorrencia` = 1º dia do mês em epoch ms; `S`/`N` ↔ booleano. Competências fora do período do cálculo existem com valor `0.00` |
 
 ## 4. Verbas — `verbas/Set/…`

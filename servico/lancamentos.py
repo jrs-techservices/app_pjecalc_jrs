@@ -600,12 +600,18 @@ def _arquivos(r, caminho_json):
             continue
         caminho = resolvidos[0]
         if chave == "historico-salarial":
+            com_cs = []
             for um in resolvidos:
                 lido = _ler_historico_csv(r, chave, um)
                 if lido and lido[0].upper() in (h[0].upper() for h in r.historicos):
                     r.erro(base, um, f"já há outro histórico salarial chamado {lido[0]!r} neste pedido")
                 elif lido:
                     r.historicos.append(lido)
+                    if any(len(l) > 4 and l[4].strip().upper() == "S" for l in _linhas_do_csv(um)[1:]):
+                        com_cs.append(lido[0])
+            if r.historicos and not com_cs:
+                r.avisos.append("arquivos.historico-salarial: nenhum histórico com CONTRIBUICAO_SOCIAL = S; o PJe-Calc usa a última "
+                                "remuneração como salário pago na Contribuição Social (marque S nas parcelas do salário de contribuição)")
             r.usados.add(base)
         elif chave == "faltas":
             r.faltas = _ler_csv_da_tela(r, chave, caminho, CABECALHO_FALTAS, "INICIO", ("INICIO", "FIM"))
