@@ -555,6 +555,21 @@ def _conferir_periodos_de_ferias(r, chave, caminho, linhas):
                    "As férias proporcionais o PJe-Calc calcula sozinho: não as mande no .csv")
 
 
+SITUACOES_DE_FERIAS = {"G": "Gozadas", "GP": "Gozadas Parcialmente", "I": "Indenizadas", "P": "Perdidas"}
+
+
+def _conferir_situacoes_de_ferias(r, chave, caminho, linhas):
+    """Só G, GP, I e P têm significado no PJe-Calc 2.16.0. Outros códigos ou são recusados por ele ou viram GOZADAS:
+    "NG" é aceito e gravado como GOZADAS (testado na tela em 13/10/2026) — o oposto de "não gozadas"."""
+    posicao = CABECALHO_FERIAS.index("SITUACAO")
+    for numero, linha in enumerate(linhas, start=2):
+        situacao = str(linha[posicao] or "").strip().upper()
+        if situacao and situacao not in SITUACOES_DE_FERIAS:
+            r.erro(f"arquivos.{chave}", caminho,
+                   f"linha {numero}: SITUACAO {situacao!r}; use G, GP, I ou P (o PJe-Calc grava {situacao!r} como Gozadas). "
+                   "Férias não gozadas e já vencidas: I (indenizadas)", sorted(SITUACOES_DE_FERIAS))
+
+
 def _arquivos(r, caminho_json):
     bloco = r.dados.get("arquivos")
     if not bloco:
@@ -599,6 +614,7 @@ def _arquivos(r, caminho_json):
             r.ferias = _ler_csv_da_tela(r, chave, caminho, CABECALHO_FERIAS, "RELATIVAS",
                                         ("G1INI", "G1FIM", "G2INI", "G2FIM", "G3INI", "G3FIM"))
             _conferir_periodos_de_ferias(r, chave, caminho, r.ferias)
+            _conferir_situacoes_de_ferias(r, chave, caminho, r.ferias)
             r.usados.add(base)
         else:
             r.arquivos[chave] = caminho

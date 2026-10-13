@@ -57,7 +57,7 @@ dos valores aceitos está no [VALORES-ACEITOS-PJECALC.md](VALORES-ACEITOS-PJECAL
 | faltas: `JUSTIFICADA` / `REINICIAR_PER_AQ` | `…/faltaJustificada` / `reiniciarFerias` | `S`/`N` ↔ `true`/`false` |
 | faltas: `JUSTIFICATIVA` | `…/justificativaDaFalta` | texto |
 | férias: `RELATIVAS` | `listaDeFerias/Set/Ferias/relativa` | `2023/2024` |
-| férias: `PRAZO` · `SITUACAO` · `DOBRA` · `ABONO` · `QTD_DIAS_ABONO` | `…/prazo` · `situacao` · `dobraGeral` · `abono` · `quantidadeDiasAbono` | `situacao` em código (`INDENIZADAS`, …); `S`/`N` ↔ booleano |
+| férias: `PRAZO` · `SITUACAO` · `DOBRA` · `ABONO` · `QTD_DIAS_ABONO` | `…/prazo` · `situacao` · `dobraGeral` · `abono` · `quantidadeDiasAbono` | `situacao`: `G` → `GOZADAS`, `GP` → `GOZADAS_PARCIALMENTE`, `I` → `INDENIZADAS`, `P` → `PERDIDAS` (vistos na tela); `S`/`N` ↔ booleano |
 | férias: `G1INI`…`G3FIM`, `G1DOBRA`… | `…/dataInicialDoPeriodoDeGozo1`…`dataFinalDoPeriodoDeGozo3`, `dobraDoPeriodoDeGozo1`… | epoch ms; booleano |
 | histórico: título da 2ª coluna | `historicosSalariais/Set/HistoricoSalarial/nome` | maiúsculas |
 | histórico: parcela variável | `…/tipoVariacaoParcela` = `VARIAVEL` | a automação sempre cria como variável |

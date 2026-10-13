@@ -219,7 +219,7 @@ dentro das pastas permitidas. Arquivo inexistente ou com linha inválida: `400 l
 | chave | layout do `.csv` (separador `;`, texto UTF-8 ou Windows-1252) | o que a automação faz |
 |---|---|---|
 | `faltas` | `INICIO;FIM;JUSTIFICADA;REINICIAR_PER_AQ;JUSTIFICATIVA` — datas `dd/mm/aaaa`, `S`/`N` | importa em **Faltas** |
-| `ferias` | `RELATIVAS;PRAZO;SITUACAO;DOBRA;ABONO;QTD_DIAS_ABONO;G1INI;G1FIM;G1DOBRA;G2INI;G2FIM;G2DOBRA;G3INI;G3FIM;G3DOBRA` — datas `dd/mm/aaaa` | importa em **Férias** |
+| `ferias` | `RELATIVAS;PRAZO;SITUACAO;DOBRA;ABONO;QTD_DIAS_ABONO;G1INI;G1FIM;G1DOBRA;G2INI;G2FIM;G2DOBRA;G3INI;G3FIM;G3DOBRA` — datas `dd/mm/aaaa`; `SITUACAO` só `G` · `GP` · `I` · `P` (`NG` é gravado como Gozadas: recusado); período aquisitivo (aniversário da admissão no 1º ano até a véspera do seguinte) dentro do contrato — as proporcionais o PJe-Calc calcula sozinho | importa em **Férias** |
 | `historico-salarial` | `MES_ANO;<NOME DO HISTÓRICO>;FGTS;FGTS_REC.;CONTRIBUICAO_SOCIAL;CONTRIBUICAO_SOCIAL_REC.` — competência `MM/AAAA`, valor com vírgula (`1234,56`), marcas `S`/`N` | cria o histórico salarial (**parcela variável**, nome = título da 2ª coluna, até 120 caracteres) e importa as competências; o PJe-Calc marca as incidências FGTS e Contribuição Social conforme os `S`/`N` do arquivo |
 | `cartao-de-ponto` | — | recebido, mas **ainda não importado** (vai para `ignorados`) |
 
