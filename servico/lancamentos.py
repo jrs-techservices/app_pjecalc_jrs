@@ -309,9 +309,9 @@ def _honorarios(r):
             r.erro(f"{base}.tipoValor", item.get("tipoValor"), "valor não reconhecido", ["INFORMADO", "CALCULADO"])
             continue
         descricao = str(item.get("descricao") or "").strip()
-        if len(descricao) > 50:
-            r.avisos.append(f"{base}.descricao: tem {len(descricao)} caracteres; o PJe-Calc guarda os 50 primeiros "
-                            f"({descricao[:50].upper()!r})")
+        if len(descricao) > 50 and tipo_valor == "INFORMADO":
+            r.avisos.append(f"{base}.descricao: tem {len(descricao)} caracteres; no honorário INFORMADO o PJe-Calc guarda os 50 "
+                            f"primeiros ({descricao[:50].upper()!r})")
         if not descricao or "-" in descricao:
             r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória e sem '-' (a automação usa '-' para 'bloco vazio')")
             continue
@@ -380,9 +380,6 @@ def _multas(r):
                 r.erro(f"{base}.nomeTerceiro", item.get("nomeTerceiro"), "nome do terceiro obrigatório quando o credor/devedor é um terceiro")
         cobranca = r.enumeracao(f"{base}.tipoCobrancaReclamante", item.get("tipoCobrancaReclamante", "COBRAR"), COBRANCA)
         descricao = str(item.get("descricao") or "").strip()
-        if len(descricao) > 50:
-            r.avisos.append(f"{base}.descricao: tem {len(descricao)} caracteres; o PJe-Calc guarda os 50 primeiros "
-                            f"({descricao[:50].upper()!r})")
         if not descricao:
             r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória")
         vencimento, valor, base_multa, aliquota, juros_desde = "-", "-", "-", "-", "-"

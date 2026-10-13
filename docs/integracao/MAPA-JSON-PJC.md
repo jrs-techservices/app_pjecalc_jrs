@@ -119,7 +119,7 @@ As verbas principais **não ficam numa lista própria**: `verbas/Set` traz os **
 | `custas.tipoDeCustasDeConhecimentoDoReclamado` | `custasJudiciais/CustasJudiciais/tipoDeCustasDeConhecimentoDoReclamado` | mesmo código |
 | `custas.dataVencimentoConhecimentoDoReclamado` / `valorConhecimentoDoReclamado` | `…/dataVencimentoConhecimentoDoReclamado` / `valorConhecimentoDoReclamado` | epoch ms; número (com `CALCULADA_2_POR_CENTO` o valor é calculado pelo PJe-Calc) |
 | `custas.custasPagasDoReclamado[]` | `custasJudiciais/CustasJudiciais/…` (lista de custas recolhidas) | **a confirmar**: os dois cálculos lidos não têm custa recolhida lançada |
-| `honorarios[].descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | `honorarios/Set/Honorario/descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | maiúsculas; **descrição cortada em 50 caracteres** (compare os 50 primeiros); mesmo código (`RECLAMADO`, `RECLAMANTE`) |
+| `honorarios[].descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | `honorarios/Set/Honorario/descricao` · `tipoHonorario` · `tipoDeDevedor` · `nomeCredor` | maiúsculas; no honorário **INFORMADO a descrição é cortada em 50 caracteres** (compare os 50 primeiros); no CALCULADO ela fica inteira (58 e 79 caracteres nos cálculos 602/603); mesmo código (`RECLAMADO`, `RECLAMANTE`) |
 | `honorarios[].tipoValor` · `valor` · `dataVencimento` | `…/tipoValor` · `valor` · `dataVencimento` | número; epoch ms. Em `CALCULADO`, `valor` é o resultado |
 | `honorarios[].aliquota` | `…/aliquota` | **o `.json` usa fração (`0.15`), o XML usa percentual (`15.00`)** |
 | `honorarios[].baseParaApuracao` | `…/baseParaApuracao` | mesmo código (`BRUTO`, …) |

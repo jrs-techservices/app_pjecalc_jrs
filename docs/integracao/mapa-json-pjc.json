@@ -573,7 +573,7 @@
    "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
    "json": "honorarios[].descricao · tipoHonorario · tipoDeDevedor · nomeCredor",
    "xml": "honorarios/Set/Honorario/descricao · tipoHonorario · tipoDeDevedor · nomeCredor",
-   "traducao": "maiúsculas; descrição cortada em 50 caracteres (compare os 50 primeiros); mesmo código",
+   "traducao": "maiúsculas; INFORMADO: descrição cortada em 50 caracteres; CALCULADO: inteira",
    "a_confirmar": false,
    "conferivel": true
   },
