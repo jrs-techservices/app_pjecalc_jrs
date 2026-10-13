@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 import gc
 
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
@@ -69,6 +70,7 @@ class Ferias:
                     pass
                 # print('* ERRO!', mensagem.text)
                 gerar_relatorio('Ferias: Importação', '---------- Erro! ----------')
+                de_relatorio('Ferias: Importação')
         except TimeoutException:
             print('# - [Except][Férias][1] - Elemento não encontrado/A Página demorou no carregamento. Encerrando...')
 
@@ -101,6 +103,7 @@ class Ferias:
                     pass
                 # print('* ERRO!', msg)
                 gerar_relatorio('Ferias', '---------- Erro! ----------')
+                de_relatorio('Ferias')
 
         except TimeoutException:
             print('# - [Except][Férias][2] - Elemento não encontrado/A Página demorou no carregamento. Encerrando...')

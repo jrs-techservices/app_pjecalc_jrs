@@ -12,6 +12,7 @@ from pathlib import Path
 import pyautogui
 
 from servico import banco, config
+from Tools.pendencias import ler_linha
 
 MODOS = {0: "base", 1: "verbas", 2: "completo"}
 EXTENSOES_GERADAS = {".pjc", ".pdf"}
@@ -30,6 +31,7 @@ class _CapturaDeSaida:
         self._thread = thread
         self._buffer = ""
         self._seq = 0
+        self.pendencias = []
 
     def write(self, texto):
         self.original.write(texto)
@@ -50,6 +52,9 @@ class _CapturaDeSaida:
 
     def _registrar(self, linha):
         linha = linha.strip()
+        pendencia = ler_linha(linha) if linha else None
+        if pendencia and pendencia not in self.pendencias:
+            self.pendencias.append(pendencia)
         if not linha or self._seq >= config.LIMITE_LOG_POR_EXECUCAO:
             return
         self._seq += 1
@@ -253,8 +258,13 @@ def executar(execucao_id):
             mensagem, erro = "Erro ao preparar a execução.", traceback.format_exc()
 
         arquivos = _arquivos_gerados(valor, inicio) if valor else []
+        tem_pjc = any(a.lower().endswith(".pjc") for a in arquivos)
+        tem_pdf = any(a.lower().endswith(".pdf") for a in arquivos)
+        if status is None and tem_pjc and not tem_pdf:
+            # sem o relatório o cálculo não está pronto para uso: não é "concluído"
+            status, mensagem = banco.STATUS_FALHOU, "O .PJC foi exportado, mas o relatório em PDF não foi gerado."
         if status is None:
-            if any(a.lower().endswith(".pjc") for a in arquivos):
+            if tem_pjc:
                 status, mensagem = banco.STATUS_CONCLUIDO, "Cálculo concluído."
                 if temporaria:
                     from Calculo.leitura_planilha import csvs_de_historico
@@ -281,6 +291,6 @@ def executar(execucao_id):
 
     banco.atualizar(
         execucao_id, status=status, mensagem=mensagem, erro=erro,
-        arquivos=arquivos, captura=captura, concluido_em=banco.agora(),
+        arquivos=arquivos, captura=captura, concluido_em=banco.agora(), pendencias=saida.pendencias,
     )
     print(f"- [servico] execução {execucao_id}: {status} - {mensagem}")

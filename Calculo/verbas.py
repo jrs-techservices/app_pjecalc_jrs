@@ -9,6 +9,7 @@ import pandas as pd
 from time import sleep
 from datetime import datetime
 from Tools.pjecalc_control import Control
+from Tools.pendencias import interromper, registrar
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import Select
@@ -236,6 +237,7 @@ class Verbas:
                 gerar_relatorio("Verbas", "--", "Ok")
             elif 'erro' in alertaMensagem[0]:
                 gerar_relatorio("Verbas", f"{alertaMensagem[0]}", "---------- Erro! ----------")
+                interromper("Verbas", f"'{getattr(self, 'verba_atual', '')}' recusada ao salvar: {alertaMensagem[0]}")
                 self.mensagem_alert_frontend(driver, alertaMensagem[0])
                 self.click_BtnCancelar(driver)
                 self.objTools.aguardar_carregamento(driver)
@@ -243,6 +245,7 @@ class Verbas:
             else:
                 alertaMensagem = "Algum erro ocorreu!"
                 gerar_relatorio("Verbas", f"{alertaMensagem}", "---------- Erro! ----------")
+                interromper("Verbas", f"'{getattr(self, 'verba_atual', '')}' não confirmada ao salvar (o PJe-Calc não respondeu com sucesso)")
                 self.mensagem_alert_frontend(driver, alertaMensagem)
                 self.click_BtnCancelar(driver)
                 self.objTools.aguardar_carregamento(driver)
@@ -272,6 +275,7 @@ class Verbas:
                 gerar_relatorio("Verbas > Parcela Reflexa", "--", "Ok")
             elif 'erro' in alertaMensagem[0]:
                 gerar_relatorio("Verbas > Parcela Reflexa", f"{alertaMensagem[0]}", "---------- Erro! ----------")
+                interromper("Verbas", f"reflexo manual de '{getattr(self, 'verba_atual', '')}' recusado ao salvar: {alertaMensagem[0]}")
                 self.mensagem_alert_frontend(driver, alertaMensagem[0])
                 self.click_BtnCancelar(driver)
                 self.objTools.aguardar_carregamento(driver)
@@ -279,6 +283,7 @@ class Verbas:
             else:
                 alertaMensagem = "Algum erro ocorreu!"
                 gerar_relatorio("Verbas > Parcela Reflexa", f"{alertaMensagem}", "---------- Erro! ----------")
+                interromper("Verbas", f"reflexo manual de '{getattr(self, 'verba_atual', '')}' não confirmado ao salvar")
                 self.mensagem_alert_frontend(driver, alertaMensagem)
                 self.click_BtnCancelar(driver)
                 self.objTools.aguardar_carregamento(driver)
@@ -440,7 +445,7 @@ class Verbas:
         try:
             elementoCheckbox = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.ID, "formulario:fgts")))
         except TimeoutException:
-            print("- [INCIDÊNCIA]: 'fgts' não aparece (verba não compõe o principal); seguindo")
+            registrar("Verbas", f"incidência 'fgts' não aplicada a '{getattr(self, 'verba_atual', '')}': o PJe-Calc a esconde quando a verba não compõe o principal", origem="automacao")
             return
         situacaoCheckbox = elementoCheckbox.is_selected()
 
@@ -461,7 +466,7 @@ class Verbas:
         try:
             elementoCheckbox = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.ID, "formulario:inss")))
         except TimeoutException:
-            print("- [INCIDÊNCIA]: 'inss' não aparece (verba não compõe o principal); seguindo")
+            registrar("Verbas", f"incidência 'inss' não aplicada a '{getattr(self, 'verba_atual', '')}': o PJe-Calc a esconde quando a verba não compõe o principal", origem="automacao")
             return
         situacaoCheckbox = elementoCheckbox.is_selected()
 
@@ -481,7 +486,7 @@ class Verbas:
         try:
             elementoCheckbox = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.ID, "formulario:previdenciaPrivada")))
         except TimeoutException:
-            print("- [INCIDÊNCIA]: 'previdenciaPrivada' não aparece (verba não compõe o principal); seguindo")
+            registrar("Verbas", f"incidência 'previdenciaPrivada' não aplicada a '{getattr(self, 'verba_atual', '')}': o PJe-Calc a esconde quando a verba não compõe o principal", origem="automacao")
             return
         situacaoCheckbox = elementoCheckbox.is_selected()
 
@@ -2183,6 +2188,7 @@ class Verbas:
                     if vc == 'SNMDESCRICAOVERBA':
                         snmdescricaoverba = dado
                         snmdescricaoverba = snmdescricaoverba.strip()
+                        self.verba_atual = snmdescricaoverba
                         print("- SNMDESCRICAOVERBA: ", snmdescricaoverba)
                         self.modificar_snmdescricaoverba(driver, snmdescricaoverba)
                         continue

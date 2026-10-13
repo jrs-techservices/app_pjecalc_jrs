@@ -7,6 +7,7 @@ import time
 import os
 #
 from Tools.pjecalc_control import Control
+from Tools.pendencias import interromper
 from Calculo.pjecalc_menu import PjecalcMenu
 
 
@@ -33,6 +34,8 @@ class Liquidar:
             else:
                 print('* ERRO!', msg)
                 gerar_relatorio('Liquidar', '---------- Erro! ----------')
+                # Sem liquidar não há relatório: no serviço a execução termina como `falhou`, com a mensagem do PJe-Calc.
+                interromper('Liquidar', msg)
                 # exit() -> Antes
                 pass
         except TimeoutException:

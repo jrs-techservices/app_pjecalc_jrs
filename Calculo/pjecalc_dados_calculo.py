@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 import os
 import gc
 import re
@@ -127,6 +128,7 @@ class DadosCalculo:
                 pa.alert(title="Rôberto", text="Erro! " + erroUtil[0])
                 # Registrar Log de erro
                 gerar_relatorio("Dados do Cálculo", erroUtil[0], "---------- Erro! ----------")
+                de_relatorio("Dados do Cálculo", erroUtil[0])
             # driver.close()
             exit()
 
@@ -181,6 +183,7 @@ class DadosCalculo:
             else:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Dados do Cálculo', '---------- Erro! ----------')
+                de_relatorio('Dados do Cálculo')
         except TimeoutException:
             print('- [Except][Dados Cálculo] - Elemento não encontrado/A Página demorou para responder. Encerrando...')
 

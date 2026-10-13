@@ -83,7 +83,7 @@ POST /api/v1/calculos
 ```
 
 `navegador`: `oculto` (padrão) ou `interativo` (mostra o Firefox). Situações de um pedido:
-`na_fila` → `executando` → `concluido` | `falhou` | `cancelado`. O `.PJC` e o PDF são gravados na pasta do pedido.
+`na_fila` → `executando` → `concluido` | `falhou` | `cancelado`. O `.PJC` e o PDF são gravados na pasta do pedido; `concluido` exige os dois. O bloco `pendencias` do `GET /calculos/{id}` lista o que o PJe-Calc recusou ou a automação contornou.
 
 ## Estrutura
 

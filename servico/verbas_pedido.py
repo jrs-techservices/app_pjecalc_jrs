@@ -100,8 +100,28 @@ COLUNAS_REFLEXA = [
 ]
 
 
+# O PJe-Calc grava texto em Latin-1: o que está fora dele vira "¿" (ex.: o travessão "—").
+SUBSTITUTOS = {"—": "-", "–": "-", "‒": "-", "−": "-", "“": '"', "”": '"', "„": '"',
+               "‘": "'", "’": "'", "´": "'", "…": "...", " ": " ", "•": "-"}
+LIMITE_DESCRICAO = 50  # o PJe-Calc corta a descrição da verba em 50 caracteres (visto nos .PJC da auditoria do SAP)
+
+
+def texto_latin1(texto):
+    """Troca o que o PJe-Calc não guarda por equivalente simples; o que não tiver equivalente é retirado."""
+    texto = "".join(SUBSTITUTOS.get(c, c) for c in str(texto))
+    return "".join(c for c in texto if ord(c) < 256)
+
+
 def normalizar_descricao(texto):
-    return " ".join(str(texto).split()).upper()
+    return " ".join(texto_latin1(texto).split()).upper()
+
+
+def _descricao(r, ler, campo="descricao"):
+    original = " ".join(str(ler.item.get(campo) or "").split()).upper()
+    descricao = normalizar_descricao(original)
+    if descricao != original:
+        r.avisos.append(f"{ler.base}.{campo}: caracteres que o PJe-Calc não grava foram trocados: {original!r} -> {descricao!r}")
+    return descricao
 
 
 class _Leitor:
@@ -248,6 +268,9 @@ def _valor_pago(ler, linha):
     tipo = ler.lista("valorPago.tipo", VALOR_PAGO, obrigatorio=True)
     linha["STPVALORPAGO"] = VALOR_PAGO.get(tipo)
     base = ler.lista("valorPago.base", BASE_TABELADA)
+    if tipo == "CALCULADO" and base is None and ler.item["valorPago"].get("base") in (None, ""):
+        # o PJe-Calc recusa salvar a verba com valor pago calculado sem base (falha do 17111)
+        ler.erro("valorPago.base", "obrigatória com valorPago.tipo CALCULADO", sorted(BASE_TABELADA))
     linha["STPBASEPAGO"] = BASE_TABELADA.get(base)
     linha["RVLINOUTROVALOR"] = ler.numero("valorPago.valor", obrigatorio=tipo == "INFORMADO")
     linha["RVLQUANTIDADE"] = ler.numero("valorPago.quantidade")
@@ -330,7 +353,7 @@ def interpretar_verbas(r):
             continue
         if item["expresso"] not in EXPRESSO:
             ler.erro("expresso", "não está na lista do Lançamento Expresso do PJe-Calc", EXPRESSO)
-        descricao = normalizar_descricao(item.get("descricao") or "")
+        descricao = _descricao(r, ler)
         if not descricao:
             ler.erro("descricao", "obrigatória")
         linha = {"SNMVERBAJRS": descricao, "SNMVERBAEXPRESSOPJECALC": item["expresso"], "SNMDESCRICAOVERBA": descricao,
@@ -394,6 +417,18 @@ def interpretar_verbas(r):
     enderecadas = {ref for refs in refs_verba.values() for ref, _, _ in refs if ref in por_id}
     enderecadas |= {i for i, m in marcados_por_id.items() if m and i in por_id}
     enderecadas |= {m["principal"] for m in manuais}
+    # descrição acima do limite: o PJe-Calc corta. Para verba endereçada isso quebra a busca dos reflexos e das bases.
+    for ident, dados_verba in por_id.items():
+        tamanho = len(dados_verba["descricao"])
+        if tamanho <= LIMITE_DESCRICAO:
+            continue
+        if ident in enderecadas:
+            r.erro(f"{dados_verba['base']}.descricao", dados_verba["descricao"],
+                   f"o PJe-Calc guarda até {LIMITE_DESCRICAO} caracteres (tem {tamanho}) e esta verba tem reflexo ou é base "
+                   "de outra: cortada, a automação não a acharia")
+        else:
+            r.avisos.append(f"{dados_verba['base']}.descricao: tem {tamanho} caracteres; o PJe-Calc guarda os {LIMITE_DESCRICAO} primeiros "
+                            f"({dados_verba['descricao'][:LIMITE_DESCRICAO]!r})")
     for ident in sorted(enderecadas):
         iguais = descricoes.get(por_id[ident]["descricao"], [])
         if len(iguais) > 1:
@@ -482,7 +517,7 @@ def _reflexos_manuais(r, por_id, marcados_por_id):
         if chave not in marcados_por_id.get(principal, set()):
             r.avisos.append(f"{base}: a verba {principal} não marca reflexos.{chave} = true; o reflexo manual não será criado.")
             continue
-        descricao = normalizar_descricao(item.get("descricao") or "")
+        descricao = _descricao(r, ler)
         if not descricao:
             ler.erro("descricao", "obrigatória")
         assunto = item.get("assuntoCnj")

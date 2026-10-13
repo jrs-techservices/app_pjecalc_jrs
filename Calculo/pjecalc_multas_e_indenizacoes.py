@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
@@ -68,6 +69,7 @@ class MultasIndenizacoes:
             else:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Multas e Indenizações', '---------- Erro! ----------')
+                de_relatorio('Multas e Indenizações')
                 cancelar_operacao()
 
         except TimeoutException:

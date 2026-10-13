@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.common.alert import Alert
@@ -256,6 +257,7 @@ class Custas:
                     except NoAlertPresentException:
                         continue
             gerar_relatorio_erro(f'Contribuição Social: {conteudo}', '---------- Erro! ----------')
+            de_relatorio(f'Contribuição Social: {conteudo}')
             #
             try:
                 elemento_cancelar_status = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.NAME, "formulario:cancelar")))
@@ -295,6 +297,7 @@ class Custas:
             else:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Custas Judiciais', '---------- Erro! ----------')
+                de_relatorio('Custas Judiciais')
         except TimeoutException:
             print('- [Except][Custas] - Página demorou a responder ou o elemento não encontrado. Encerrando...')
 
@@ -323,6 +326,7 @@ class Custas:
             else:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Custas Judiciais', '---------- Erro! ----------')
+                de_relatorio('Custas Judiciais')
 
         except TimeoutException:
             print('- [Except][Custas] - Página demorou a responder ou o elemento não encontrado. Encerrando...')

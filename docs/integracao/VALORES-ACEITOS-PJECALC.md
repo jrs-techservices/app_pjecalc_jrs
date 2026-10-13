@@ -242,6 +242,26 @@ dentro das pastas permitidas. Arquivo inexistente ou com linha inválida: `400 l
 Planilha do SAP (com a aba `PJe Histórico`) **sem nenhum histórico nomeado** é recusada na porta:
 `400 planilha_em_branco`. Planilha salva sem calcular as macros ou fora do layout: `400 planilha_invalida`.
 
+### Resultado da execução: `concluido` só com `.PJC` e PDF, e o bloco `pendencias`
+
+- **`concluido`** exige o `.PJC` **e** o relatório em PDF. Sem o PDF a execução fica `falhou` ("o relatório em PDF não foi gerado").
+- **Liquidação recusada** pelo PJe-Calc → `falhou`, com a mensagem dele (ex.: *"É necessário resolver as pendências do tipo
+  Erro antes de realizar a liquidação"*). Antes saía `concluido` sem relatório.
+- **Verba ou reflexo manual recusado ao salvar** → `falhou`, com o nome da verba e a mensagem do PJe-Calc (a captura de tela
+  mostra o formulário com o erro). Antes a verba era descartada e a execução seguia.
+- **`pendencias`** no `GET /calculos/{id}`: `[{ tela, mensagem, origem: "pjecalc" | "automacao" }]` — tudo o que o PJe-Calc não
+  confirmou ao salvar uma tela e o que a automação contornou (ex.: incidência que o PJe-Calc esconde numa verba que não compõe
+  o principal). Vem em qualquer situação final (`concluido` ou `falhou`); lista vazia = nada a apontar.
+- **`lancamentos_resumo.ignorados`** é um objeto `{ campo: motivo }` (formato oficial).
+
+### Descrição das verbas (o que o PJe-Calc guarda)
+
+- Só caracteres **Latin-1**: travessão `—`/`–`, aspas `“ ”`/`‘ ’` e reticências `…` são trocados por `-`, `"`, `'` e `...`
+  (aviso no resumo); o que não tiver equivalente é retirado. Sem isso o PJe-Calc grava `¿`.
+- **Até 50 caracteres**: o PJe-Calc corta o resto. Verba com reflexo marcado ou usada como base de outra (endereçada) acima de
+  50 é **recusada** — cortada, a automação não a acharia; nas demais, aviso com o texto que vai ficar.
+- `valorPago.tipo: CALCULADO` exige `valorPago.base` (o PJe-Calc recusa salvar a verba sem ela).
+
 ### O resumo volta na resposta
 
 O `202` do `POST /calculos` já traz `execucao.lancamentos_resumo` com `usados`, `ignorados` (campo → motivo) e

@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoAlertPresentException
@@ -120,6 +121,7 @@ class ContribuicaoSocial:
                     except NoAlertPresentException:
                         continue
             gerar_relatorio_erro(f'Contribuição Social: {conteudo}', '---------- Erro! ----------')
+            de_relatorio(f'Contribuição Social: {conteudo}')
             #
             try:
                 elemento_cancelar_status = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.NAME, "formulario:cancelarGeracao")))
@@ -160,6 +162,7 @@ class ContribuicaoSocial:
             else:
                 print('* ERRO!', msg)
                 gerar_relatorio('Contribuição Social', '---------- Erro! ----------')
+                de_relatorio('Contribuição Social')
                 try:
                     self.cancelar_operacao(driver)
                 except TimeoutException:
@@ -664,6 +667,7 @@ class ContribuicaoSocial:
             WebDriverWait(driver, self.delay).until(EC.alert_is_present())
             alerta = Alert(driver)
             self.gerar_relatorio("Contribuição Social", "O intervalo do Cálculo é superior ao limite da planilha (30 anos)", "---------- Erro! ----------")
+            de_relatorio("Contribuição Social", "O intervalo do Cálculo é superior ao limite da planilha (30 anos)")
             time.sleep(5)
             alerta.accept()
         else:

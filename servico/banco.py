@@ -25,6 +25,7 @@ _COLUNAS_ADICIONADAS = {
     "captura": "TEXT",
     "lancamentos": "TEXT",
     "lancamentos_resumo": "TEXT",
+    "pendencias": "TEXT",
 }
 
 _ESQUEMA = """
@@ -87,6 +88,7 @@ def _para_dict(linha):
     registro = dict(linha)
     registro["arquivos"] = json.loads(registro["arquivos"]) if registro["arquivos"] else []
     registro["lancamentos_resumo"] = json.loads(registro["lancamentos_resumo"]) if registro.get("lancamentos_resumo") else None
+    registro["pendencias"] = json.loads(registro["pendencias"]) if registro.get("pendencias") else []
     registro.pop("chave_idempotencia", None)
     registro["duracao_seg"] = None
     if registro["iniciado_em"]:
@@ -184,8 +186,9 @@ def indicadores():
 
 
 def atualizar(execucao_id, **campos):
-    if "arquivos" in campos:
-        campos["arquivos"] = json.dumps(campos["arquivos"], ensure_ascii=False)
+    for chave in ("arquivos", "pendencias"):
+        if chave in campos:
+            campos[chave] = json.dumps(campos[chave], ensure_ascii=False)
     atribuicoes = ", ".join(f"{nome} = ?" for nome in campos)
     with _trava, _conectar() as conexao:
         conexao.execute(f"UPDATE execucoes SET {atribuicoes} WHERE id = ?", (*campos.values(), execucao_id))

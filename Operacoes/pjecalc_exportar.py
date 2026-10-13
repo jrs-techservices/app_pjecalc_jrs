@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -38,6 +39,7 @@ class Exportar:
             else:
                 print('* ERRO!', msg)
                 gerar_relatorio('Exportar', '---------- Erro! ----------')
+                de_relatorio('Exportar')
         except TimeoutException:
             print(
                 '* Exceção - Verificação -  A Página demorou para responder ou o elemento não foi encontrado. Encerrando...')

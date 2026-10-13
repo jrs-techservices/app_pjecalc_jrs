@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
@@ -98,6 +99,7 @@ class Honorarios(DadosCalculo):
             elif 'Existem erros no formulário.' in msg or 'erro' in msg or 'Erro' in msg:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Honorários', '---------- Erro! ----------')
+                de_relatorio('Honorários')
                 cancelar_operacao()
             else:
                 print('#- ', msg)

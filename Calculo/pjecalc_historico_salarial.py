@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoAlertPresentException
@@ -71,6 +72,7 @@ class HistoricoSalarial:
             else:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Histórico Salarial', '---------- Erro! ----------')
+                de_relatorio('Histórico Salarial')
                 cancelar_operacao()
         except TimeoutException:
             print('- [Except][HS] - Elemento não encontrado/A Página demorou para responder. Encerrando...')

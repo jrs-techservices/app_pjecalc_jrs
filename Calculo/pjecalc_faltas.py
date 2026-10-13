@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoAlertPresentException
@@ -74,6 +75,7 @@ class Faltas:
                     pass
                 # print('* ERRO!', msg)
                 gerar_relatorio('Faltas', '---------- Erro! ----------')
+                de_relatorio('Faltas')
         except TimeoutException:
             print('# - [Except][Faltas] - Elemento não encontrado/A Página demorou no carregamento. Encerrando...')
 

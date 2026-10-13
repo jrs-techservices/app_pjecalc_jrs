@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -41,6 +42,7 @@ class FGTS(DadosCalculo):
             else:
                 # print('* ERRO!', msg)
                 gerar_relatorio('FGTS', '---------- Erro! ----------')
+                de_relatorio('FGTS')
         except TimeoutException:
             print('- [Except][FGTS] - Elemento não encontrado/A Página demorou para responder. Encerrando...')
 

@@ -1,3 +1,4 @@
+from Tools.pendencias import de_relatorio
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
@@ -69,6 +70,7 @@ class Correcao(DadosCalculo):
             elif 'Existem erros no formulário.' in msg or 'erro' in msg or 'Erro' in msg:
                 # print('* ERRO!', msg)
                 gerar_relatorio('Correção, Juros e Multa', '---------- Erro! ----------')
+                de_relatorio('Correção, Juros e Multa')
             else:
                 print('#- ', msg)
         except TimeoutException:
@@ -98,6 +100,7 @@ class Correcao(DadosCalculo):
             elif 'Existem erros no formulário.' in msg or 'erro' in msg or 'Erro' in msg:
                 print('* ERRO!', msg)
                 gerar_relatorio('Correção, Juros e Multa', '---------- Erro! ----------')
+                de_relatorio('Correção, Juros e Multa')
             else:
                 print('#- ', msg)
         except TimeoutException:
