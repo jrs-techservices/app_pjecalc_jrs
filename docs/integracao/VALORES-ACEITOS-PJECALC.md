@@ -209,6 +209,27 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 `salario-familia`, `seguro-desemprego`, `previdencia-privada`, `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`
 ("tela ainda não automatizada"); qualquer outro campo ("campo não reconhecido" / "campo sem correspondente na automação").
 
+### `advogados`: advogados de cada parte (Dados do Cálculo)
+
+```json
+"advogados": {
+  "reclamante": [ { "nome": "JOÃO DA SILVA", "oab": "12345/PE", "tipoDocumento": "CPF", "documento": "529.982.247-25" } ],
+  "reclamado":  [ { "nome": "MARIA SOUZA", "oab": "9876/SP" } ]
+}
+```
+
+| campo | regra (recusado com `400` se quebrada) |
+|---|---|
+| `nome` | obrigatório, até 150 caracteres; vai em maiúsculas |
+| `oab` | opcional, `NUMERO/UF`, **até 9 caracteres** (limite do campo); suplementar sem hífen: `12345A/PE` |
+| `tipoDocumento` + `documento` | juntos ou nenhum; `CPF` · `CNPJ` · `CEI`; CPF/CNPJ com dígito verificador; CEI com 12 dígitos |
+| repetição | o mesmo documento duas vezes na **mesma parte** é recusado (o PJe-Calc não inclui o segundo e não avisa) |
+| quantidade | até 10 por parte, na ordem da tela |
+
+Cada advogado é incluído com o botão "+" da tela e conferido na lista; se não entrar, vira pendência. Com planilha base
+que traga `advogado_parte1`/`advogado_parte2`, a planilha prevalece naquela parte (aviso). O caminho da planilha também
+passou a clicar no "+" (antes o advogado só era digitado e não ficava gravado).
+
 ### `arquivos`: faltas, férias e histórico salarial (`.csv`)
 
 O `.json` aponta para os arquivos; o serviço os lê **na porta** e importa pelas telas do PJe-Calc, no mesmo lugar em que a

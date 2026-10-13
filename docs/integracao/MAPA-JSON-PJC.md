@@ -27,6 +27,7 @@ dos valores aceitos está no [VALORES-ACEITOS-PJECALC.md](VALORES-ACEITOS-PJECAL
 |---|---|---|
 | `dadosDoCalculo.numeroProcesso` · `telas.….numero_processo` | `processo/Processo/identificador/IdentificadorDoProcesso/{numero, digito, ano, justica, regiao, vara}` | `0000618-49.2025.5.10.0006` → numero 618, digito 49, ano 2025, justica 5, regiao 10, vara 6 (sem zeros à esquerda) |
 | `telas.….valor_da_causa` | `processo/Processo/valorDaCausa` | número |
+| `advogados.reclamante[]` / `advogados.reclamado[]` | dentro de `processo/Processo/reclamante/Reclamante` / `…/reclamado/Reclamado` (**a confirmar** a tag: os cálculos lidos não têm advogado) | nome em maiúsculas; documento só dígitos; OAB como digitada |
 | `partes[ATIVO].nome` · `reclamante_nome` | `processo/Processo/reclamante/Reclamante/nome` | maiúsculas |
 | `partes[ATIVO].documento` · `reclamante_cpf` | `…/Reclamante/numeroDocumentoFiscal` (+ `tipoDocumentoFiscal` = `CPF`) | só dígitos |
 | `partes[PASSIVO].nome` · `reclamado_nome` | `processo/Processo/reclamado/Reclamado/nome` | maiúsculas |
@@ -134,7 +135,6 @@ As verbas principais **não ficam numa lista própria**: `verbas/Set` traz os **
 | `verbas[].expresso` | o `.PJC` não guarda o item do Lançamento Expresso |
 | `uf` / `municipio` | `municipio/Municipio/externalRef` é o código interno do PJe-Calc (ex.: `9701`), não o nome |
 | pontos facultativos | `pontosFacultativos/Set/ItemPontoFacultativo/pontoFacultativo/Feriado/externalRef` é um identificador interno |
-| advogados das partes | o `.json` não os envia |
 | `assuntoCnj` das verbas principais | o PJe-Calc o define pelo item do Expresso (ex.: `2086`), não pelo pedido |
 | valores calculados (total de honorários, custas 2%, ocorrências mês a mês das verbas) | são resultado da liquidação, não do pedido |
 

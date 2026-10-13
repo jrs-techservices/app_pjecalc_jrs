@@ -1,4 +1,4 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, registrar
 import os
 import gc
 import re
@@ -762,14 +762,63 @@ class DadosCalculo:
                     self.objTools.aguardar_carregamento(driver)
                     break
 
+    # [ADVOGADOS] -------------------------------------------------------------------------------------------------
+    def incluir_advogado(self, driver, sufixo, nome, oab=None, tipo=None, documento=None):
+        """Preenche um advogado da parte (sufixo 'Reclamante'/'Reclamado'), clica no "+" e confere se entrou na lista.
+
+        Sem o "+" o PJe-Calc não guarda o advogado. Com documento repetido na mesma parte ele não inclui e não avisa.
+        """
+        campo = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, f'formulario:nomeAdvogado{sufixo}')))
+        campo.clear()
+        campo.send_keys(nome)
+        if oab:
+            campo_oab = driver.find_element(By.ID, f'formulario:numeroOABAdvogado{sufixo}')
+            campo_oab.clear()
+            campo_oab.send_keys(oab)
+        if tipo and documento:
+            indice = {"CPF": 0, "CNPJ": 1, "CEI": 2}[tipo]
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:tipoDocumentoAdvogado{sufixo}:{indice}'))).click()
+            sleep(1.5)
+            campo_doc = driver.find_element(By.ID, f'formulario:numeroDocumentoAdvogado{sufixo}')
+            campo_doc.clear()
+            campo_doc.send_keys(documento)
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:incluirAdvogado{sufixo}'))).click()
+        self.objTools.aguardar_carregamento(driver)
+        sleep(1.5)
+        nomes = driver.execute_script(
+            f"""return [...document.querySelectorAll('tbody[id="formulario:listagemAdvogado{sufixo}:tb"] > tr')]
+                .map(tr => {{ const tds = tr.querySelectorAll(':scope > td'); return tds.length > 1 ? tds[1].textContent.trim() : ''; }});""")
+        if nome.upper() in [n.upper() for n in nomes]:
+            print(f"- [ADVOGADO_{sufixo.upper()}]: '{nome}' incluído")
+            return True
+        registrar("Dados do Cálculo", f"advogado '{nome}' ({sufixo.lower()}) não entrou na lista do PJe-Calc")
+        return False
+
+    def lancar_advogados_do_pedido(self, driver, parte):
+        """Bloco `advogados` do .json (chaves advogados_<parte>_qtd e advogado_<parte>_<n>_*). False se o pedido não os traz."""
+        valores = {str(k).strip(): v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str)}
+        quantidade = valores.get(f"advogados_{parte}_qtd")
+        if valor_vazio(quantidade):
+            return False
+        sufixo = "Reclamante" if parte == "reclamante" else "Reclamado"
+
+        def campo(n, nome_campo):
+            valor = valores.get(f"advogado_{parte}_{n}_{nome_campo}")
+            return None if valor_vazio(valor) else str(valor).strip()
+
+        for n in range(1, int(float(quantidade)) + 1):
+            nome = campo(n, "nome")
+            if nome:
+                self.incluir_advogado(driver, sufixo, nome, campo(n, "oab"), campo(n, "tipodoc"), campo(n, "doc"))
+        return True
+
     def digitar_nomeAdvogadoReclamante(self, driver, value):
 
         for _ in range(self.qtdTentativas):
             try:
                 # [ADVOGADO_RECLAMADO]
-                field = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.XPATH, '//input[@id="formulario:nomeAdvogadoReclamante"]')))
-                field.send_keys(value)
-                print("- [ADVOGADO_RECLAMADO]: [OK]")
+                self.incluir_advogado(driver, "Reclamante", str(value).strip())
                 return [True, '']
             except Exception as e:
                 print(f"- [except][digitar_nomeAdvogadoReclamante]: {e}")
@@ -995,9 +1044,7 @@ class DadosCalculo:
         for _ in range(self.qtdTentativas):
             try:
                 # [ADVOGADO_RECLAMADO]
-                field = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.XPATH, '//input[@id="formulario:nomeAdvogadoReclamado"]')))
-                field.send_keys(value)
-                print("- [ADVOGADO_RECLAMADO]: [OK]")
+                self.incluir_advogado(driver, "Reclamado", str(value).strip())
                 return [True, '']
             except Exception as e:
                 print(f"- [except][digitar_advogadoReclamado]: {e}")
@@ -2717,7 +2764,8 @@ class DadosCalculo:
         self.get_numeroDocReclamante_and_digitar(driver)
         sleep(self.delayDefault)
 
-        self.get_nomeAdvogadoReclamante_and_digitar(driver)
+        if not self.lancar_advogados_do_pedido(driver, "reclamante"):
+            self.get_nomeAdvogadoReclamante_and_digitar(driver)
         sleep(self.delayDefault)
 
         self.get_nomeReclamado_and_digitar(driver)
@@ -2726,7 +2774,8 @@ class DadosCalculo:
         self.get_numeroDocReclamado_and_digitar(driver)
         sleep(self.delayDefault)
 
-        self.get_nomeAdvogadoReclamado_and_digitar(driver)
+        if not self.lancar_advogados_do_pedido(driver, "reclamado"):
+            self.get_nomeAdvogadoReclamado_and_digitar(driver)
         sleep(self.delayDefault)
 
         self.clicar_aba_parametrosCalculo(driver)

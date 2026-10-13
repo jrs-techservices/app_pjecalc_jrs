@@ -412,6 +412,94 @@ def _multas(r):
     r.familias.append(("multas", familia))
 
 
+# ---------------------------------------------------------------- bloco novo: advogados
+
+LIMITE_OAB = 9  # o campo OAB da tela do PJe-Calc aceita 9 caracteres
+OAB = re.compile(r"^\d{1,6}[A-Z]?/[A-Z]{2}$")
+TIPOS_DOCUMENTO_ADVOGADO = {"CPF": 11, "CNPJ": 14, "CEI": 12}
+
+
+def cpf_valido(digitos):
+    if len(digitos) != 11 or digitos == digitos[0] * 11:
+        return False
+    for tamanho in (9, 10):
+        soma = sum(int(d) * (tamanho + 1 - i) for i, d in enumerate(digitos[:tamanho]))
+        if (soma * 10 % 11) % 10 != int(digitos[tamanho]):
+            return False
+    return True
+
+
+def cnpj_valido(digitos):
+    if len(digitos) != 14 or digitos == digitos[0] * 14:
+        return False
+    for tamanho, pesos in ((12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]), (13, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])):
+        resto = sum(int(d) * p for d, p in zip(digitos[:tamanho], pesos)) % 11
+        if (0 if resto < 2 else 11 - resto) != int(digitos[tamanho]):
+            return False
+    return True
+
+
+def _advogados(r):
+    """Bloco `advogados`: { reclamante: [...], reclamado: [...] } → família por parte, lançada em Dados do Cálculo."""
+    from servico.verbas_pedido import normalizar_descricao
+
+    bloco = r.dados.get("advogados")
+    if bloco is None:
+        return
+    if not isinstance(bloco, dict):
+        r.erro("advogados", bloco, "deve ser um objeto { reclamante: [...], reclamado: [...] }")
+        return
+    for parte in bloco:
+        if parte not in ("reclamante", "reclamado"):
+            r.ignorar(f"advogados.{parte}", "parte não reconhecida (use reclamante ou reclamado)")
+    for parte in ("reclamante", "reclamado"):
+        itens = bloco.get(parte)
+        if itens is None:
+            continue
+        base = f"advogados.{parte}"
+        if not isinstance(itens, list):
+            r.erro(base, itens, "deve ser uma lista")
+            continue
+        if len(itens) > 10:
+            r.erro(base, len(itens), "no máximo 10 advogados por parte")
+            continue
+        familia, documentos, erros_antes = [(f"advogados_{parte}_qtd", len(itens))], set(), len(r.erros)
+        for n, item in enumerate(itens, start=1):
+            caminho = f"{base}[{n - 1}]"
+            if not isinstance(item, dict):
+                r.erro(caminho, item, "deve ser um objeto { nome, oab, tipoDocumento, documento }")
+                continue
+            nome = normalizar_descricao(item.get("nome") or "")
+            if not nome:
+                r.erro(f"{caminho}.nome", item.get("nome"), "obrigatório")
+            elif len(nome) > 150:
+                r.erro(f"{caminho}.nome", item.get("nome"), "até 150 caracteres (limite da tela)")
+            oab = str(item.get("oab") or "").strip().upper().replace(" ", "")
+            if oab and (len(oab) > LIMITE_OAB or not OAB.match(oab)):
+                r.erro(f"{caminho}.oab", item.get("oab"), f"use NUMERO/UF, até {LIMITE_OAB} caracteres (ex.: 12345/PE, 12345A/PE)")
+            elif oab and oab.split("/")[1] not in UFS:
+                r.erro(f"{caminho}.oab", item.get("oab"), "UF da OAB não reconhecida")
+            tipo = item.get("tipoDocumento")
+            documento = documento_da_planilha(item.get("documento")) if item.get("documento") not in (None, "") else None
+            if (tipo in (None, "")) != (documento is None):
+                r.erro(f"{caminho}.documento", item.get("documento"), "tipoDocumento e documento vêm juntos ou não vêm")
+            elif tipo is not None:
+                if tipo not in TIPOS_DOCUMENTO_ADVOGADO:
+                    r.erro(f"{caminho}.tipoDocumento", tipo, "valor não reconhecido", sorted(TIPOS_DOCUMENTO_ADVOGADO))
+                elif (len(documento) != TIPOS_DOCUMENTO_ADVOGADO[tipo]
+                      or (tipo == "CPF" and not cpf_valido(documento)) or (tipo == "CNPJ" and not cnpj_valido(documento))):
+                    r.erro(f"{caminho}.documento", item.get("documento"), f"{tipo} inválido (tamanho ou dígito verificador)")
+                elif documento in documentos:
+                    # o PJe-Calc não inclui o segundo advogado com o mesmo documento na mesma parte, e não avisa
+                    r.erro(f"{caminho}.documento", item.get("documento"), "documento repetido nesta parte: o PJe-Calc não inclui o segundo")
+                documentos.add(documento)
+            familia += [(f"advogado_{parte}_{n}_nome", nome), (f"advogado_{parte}_{n}_oab", oab or "-"),
+                        (f"advogado_{parte}_{n}_tipodoc", tipo or "-"), (f"advogado_{parte}_{n}_doc", documento or "-")]
+        if len(r.erros) == erros_antes and itens:
+            r.familias.append((f"advogados_{parte}", familia))
+            r.usados.add(base)
+
+
 # ---------------------------------------------------------------- bloco novo: arquivos (CSV)
 
 CABECALHO_FALTAS = ["INICIO", "FIM", "JUSTIFICADA", "REINICIAR_PER_AQ", "JUSTIFICATIVA"]
@@ -793,6 +881,9 @@ PORTADORES = {
     "honorarios": re.compile(r"^(honorarios_periciais_descricao|honorarios_contratuais_tipob)_\d+$"),
     "multas": re.compile(r"^multas_indenizacoes_credor_\d+$"),
     "custas": re.compile(r"^(custas_reclamado_conhecimento|custas_recolhidas_rcdo\d+_valor)$"),
+    # a planilha da casa traz um advogado por parte (advogado_parte1/2): se ela traz, prevalece a parte inteira
+    "advogados_reclamante": re.compile(r"^advogado_parte1$"),
+    "advogados_reclamado": re.compile(r"^advogado_parte2$"),
 }
 
 
@@ -873,6 +964,7 @@ def interpretar(caminho):
     _honorarios(r)
     _multas(r)
     _telas(r)
+    _advogados(r)
     _arquivos(r, caminho)
     if "cont_social_aliquota_empregador" in r.valores:
         # A CNAE só é lida quando a leitura chega em entidade_filantropica; sem valor, nenhuma das três opções é marcada.
@@ -880,7 +972,7 @@ def interpretar(caminho):
             r.valores.setdefault(gatilho, "<nao_preenchido>")
     from servico.verbas_pedido import interpretar_verbas
     interpretar_verbas(r)
-    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais")}):
+    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados")}):
         if folha and folha not in META and folha not in r.usados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r
