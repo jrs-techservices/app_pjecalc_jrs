@@ -715,13 +715,53 @@ class ContribuicaoSocial:
             # Tempo de controle
             time.sleep(1.5)
 
+    def preencher_base_inss_do_pedido(self, driver, base_inss):
+        """Grava a base do INSS do .json na coluna "Salários Pagos (Histórico)", casando por competência.
+
+        A tela não rotula o 13º: ele é a 2ª linha da mesma competência (dezembro, ou o mês da demissão no último ano).
+        """
+        from Tools.pendencias import registrar
+        valores = {(competencia, parcela): valor for competencia, parcela, valor in base_inss}
+        linhas = driver.execute_script("""return [...document.querySelectorAll('input[name$=":baseHistoricoDevido"]')]
+            .map(i => [i.name, i.closest('tr').querySelector('td').textContent.trim()]);""")
+        ocorrencias, gravados, sem_valor = {}, set(), []
+        for nome, competencia in linhas:
+            posicao = ocorrencias.get(competencia, 0)
+            ocorrencias[competencia] = posicao + 1
+            parcela = "SALARIO" if posicao == 0 else "13"
+            if (competencia, parcela) not in valores:
+                sem_valor.append(competencia + (" (13º)" if parcela == "13" else ""))
+                continue
+            campo = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.NAME, nome)))
+            campo.click()
+            campo.send_keys(Keys.CONTROL, "a")
+            campo.send_keys(Keys.DELETE)
+            campo.send_keys(f"{valores[(competencia, parcela)]:.2f}")
+            campo.send_keys(Keys.TAB)
+            gravados.add((competencia, parcela))
+        print(f"- [Contribuição Social]: base do INSS do pedido gravada em {len(gravados)} de {len(linhas)} competência(s)")
+        sobras = [f"{c}{' (13º)' if p == '13' else ''}" for c, p in valores if (c, p) not in gravados]
+        if sobras:
+            registrar("Contribuição Social", f"base-inss: competência(s) sem linha na tela, não gravada(s): {', '.join(sobras)}",
+                      origem="automacao")
+        if sem_valor:
+            registrar("Contribuição Social", f"base-inss sem valor para {', '.join(sem_valor)}: ficou o valor do PJe-Calc",
+                      origem="automacao")
+        self.salvar(driver)
+        time.sleep(1.5)
+
     def preencher_salarios_pagos_historico_v34(self, driver, admissao, rescisao, inicio_calculo, termino_calculo):
 
         if self.planilha_base_inss is None:
             # Pedido do .json: o PJe-Calc preenche "Salários Pagos (Histórico)" sozinho com os históricos marcados com
             # incidência de Contribuição Social (coluna CONTRIBUICAO_SOCIAL = S do .csv). Sem nenhum, usa a última remuneração.
-            from Calculo.leitura_planilha import csvs_de_historico
+            from Calculo.leitura_planilha import csvs_de_historico, base_inss_do_pedido
             from Tools.pendencias import registrar
+            base_inss = base_inss_do_pedido(self.source)
+            if base_inss:
+                # arquivos["base-inss"] do .json vence a soma dos históricos com incidência de CS
+                self.preencher_base_inss_do_pedido(driver, base_inss)
+                return
             marcados = [nome for nome, caminho in csvs_de_historico(self.source) if _historico_incide_cs(caminho)]
             if marcados:
                 print(f"- [Contribuição Social]: salários pagos vêm dos históricos com incidência de CS: {', '.join(marcados)}")

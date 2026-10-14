@@ -113,12 +113,13 @@ def _preparar_lancamentos(registro, execucao_id):
         definir_complemento_pje_bd(registro["planilha_base"], complemento, forcados)
         verbas = _planilha_de_verbas(interpretacao, registro, execucao_id)
         for tipo, linhas in (("faltas", interpretacao.faltas), ("férias", interpretacao.ferias),
-                             ("histórico salarial", interpretacao.historicos)):
+                             ("histórico salarial", interpretacao.historicos), ("base de INSS", interpretacao.base_inss)):
             if linhas:
                 print(f"- [AVISO][lançamentos]: pedido com planilha base: a {tipo} da planilha prevalece; o(s) .csv de {tipo} do .json foi(ram) ignorado(s)")
         return registro["planilha_base"], None, verbas
     temporaria = lancamentos.criar_planilha_do_pedido(registro["lancamentos"], interpretacao.pares(), execucao_id,
-                                                      interpretacao.faltas, interpretacao.ferias, interpretacao.historicos)
+                                                      interpretacao.faltas, interpretacao.ferias, interpretacao.historicos,
+                                                      interpretacao.base_inss)
     print(f"- [lançamentos] pedido sem planilha base: planilha temporária {temporaria}")
     return temporaria, temporaria, _planilha_de_verbas(interpretacao, registro, execucao_id)
 

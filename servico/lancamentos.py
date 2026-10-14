@@ -88,6 +88,7 @@ class Interpretacao:
         self.faltas = []
         self.ferias = []
         self.historicos = []
+        self.base_inss = []
         self.arquivos = {}
 
     # --- registro ---
@@ -505,7 +506,7 @@ def _advogados(r):
 CABECALHO_FALTAS = ["INICIO", "FIM", "JUSTIFICADA", "REINICIAR_PER_AQ", "JUSTIFICATIVA"]
 CABECALHO_FERIAS = ["RELATIVAS", "PRAZO", "SITUACAO", "DOBRA", "ABONO", "QTD_DIAS_ABONO",
                     "G1INI", "G1FIM", "G1DOBRA", "G2INI", "G2FIM", "G2DOBRA", "G3INI", "G3FIM", "G3DOBRA"]
-ARQUIVOS_CONHECIDOS = ("faltas", "ferias", "historico-salarial", "cartao-de-ponto")
+ARQUIVOS_CONHECIDOS = ("faltas", "ferias", "historico-salarial", "cartao-de-ponto", "base-inss")
 DATA_BR = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 
 
@@ -619,6 +620,68 @@ def _ler_historico_csv(r, chave, caminho):
     return None if len(r.erros) > erros_antes else (nome, caminho)
 
 
+def _valor_br(texto):
+    """'1.500,00' / '850,5' / '850' / '1.500' (milhar) -> float."""
+    texto = texto.strip()
+    if "," in texto:
+        return float(texto.replace(".", "").replace(",", "."))
+    if re.fullmatch(r"-?\d{1,3}(?:\.\d{3})+", texto):
+        return float(texto.replace(".", ""))
+    return float(texto)
+
+
+def _ler_base_inss(r, chave, caminho):
+    """Base do INSS dos salários pagos (coluna "Salários Pagos (Histórico)" da Contribuição Social › Ocorrências).
+
+    MES_ANO;PARCELA;VALOR — PARCELA = SALARIO ou 13. O 13º fica em dezembro ou no mês da demissão/data final
+    (é onde a tela repete a competência). Devolve [(MM/AAAA, parcela, valor)].
+    """
+    base = f"arquivos.{chave}"
+    try:
+        linhas = _linhas_do_csv(caminho)
+    except OSError as erro:
+        r.erro(base, caminho, f"não foi possível ler o arquivo: {erro}")
+        return []
+    titulos = [t.strip().lstrip("\ufeff").upper() for t in (linhas[0] if linhas else [])]
+    if titulos[:3] != ["MES_ANO", "PARCELA", "VALOR"]:
+        r.erro(base, caminho, "cabeçalho deve ser MES_ANO;PARCELA;VALOR")
+        return []
+    admissao = r.valores.get("data_admissao")
+    final = r.valores.get("termino_calculo") or r.valores.get("data_rescisao")
+    d_admissao = ORIGEM_EXCEL + timedelta(days=admissao) if isinstance(admissao, int) else None
+    d_final = ORIGEM_EXCEL + timedelta(days=final) if isinstance(final, int) else None
+    resultado, vistos, erros_antes = [], set(), len(r.erros)
+    for numero, linha in enumerate(linhas[1:], start=2):
+        if not any(c.strip() for c in linha):
+            continue
+        celulas = [c.strip() for c in linha] + [""] * 3
+        competencia, parcela, valor = celulas[0], celulas[1].upper(), celulas[2]
+        problema = None
+        if not COMPETENCIA.match(competencia):
+            problema = f"MES_ANO {competencia!r}; use MM/AAAA"
+        elif parcela not in ("SALARIO", "13"):
+            problema = f"PARCELA {celulas[1]!r}; use SALARIO ou 13"
+        elif not VALOR_BR.match(valor):
+            problema = f"VALOR {valor!r}; use número com vírgula decimal (1234,56)"
+        elif (competencia, parcela) in vistos:
+            problema = f"{parcela} de {competencia} repetido"
+        else:
+            mes, ano = int(competencia[:2]), int(competencia[3:])
+            if d_admissao and d_final and not ((d_admissao.year, d_admissao.month) <= (ano, mes) <= (d_final.year, d_final.month)):
+                problema = f"{competencia} fora do contrato ({d_admissao:%m/%Y} a {d_final:%m/%Y})"
+            elif parcela == "13" and mes != 12 and not (d_final and (ano, mes) == (d_final.year, d_final.month)):
+                problema = f"13 em {competencia}: o 13º fica em dezembro ou no mês da demissão/data final"
+        if problema:
+            if len(r.erros) - erros_antes < MAXIMO_ERROS_POR_ARQUIVO:
+                r.erro(base, caminho, f"linha {numero}: {problema}")
+            continue
+        vistos.add((competencia, parcela))
+        resultado.append((competencia, parcela, _valor_br(valor)))
+    if not resultado and len(r.erros) == erros_antes:
+        r.erro(base, caminho, "arquivo sem nenhuma linha")
+    return resultado if len(r.erros) == erros_antes else []
+
+
 def _conferir_periodos_de_ferias(r, chave, caminho, linhas):
     """O PJe-Calc recusa a importação inteira se um período aquisitivo terminar depois da demissão/data final
     ("As férias definidas no arquivo não podem ser anterior a Data de Admissão e nem posterior a Data de Demissão/Data Final")."""
@@ -703,6 +766,9 @@ def _arquivos(r, caminho_json):
             r.usados.add(base)
         elif chave == "faltas":
             r.faltas = _ler_csv_da_tela(r, chave, caminho, CABECALHO_FALTAS, "INICIO", ("INICIO", "FIM"))
+            r.usados.add(base)
+        elif chave == "base-inss":
+            r.base_inss = _ler_base_inss(r, chave, caminho)
             r.usados.add(base)
         elif chave == "ferias":
             r.ferias = _ler_csv_da_tela(r, chave, caminho, CABECALHO_FERIAS, "RELATIVAS",
@@ -911,14 +977,14 @@ def combinar_com_planilha(interpretacao, existentes):
     return complemento, forcados, avisos
 
 
-def criar_planilha_do_pedido(caminho_json, pares, execucao_id, faltas=None, ferias=None, historicos=None):
+def criar_planilha_do_pedido(caminho_json, pares, execucao_id, faltas=None, ferias=None, historicos=None, base_inss=None):
     """Pedido sem planilha: monta, ao lado do .json, uma planilha mínima que os fluxos já sabem ler.
 
     PJE-BD com as chaves traduzidas; Faltas e Férias com as linhas dos .csv (ou vazias, 'Excluir Linha'); e a aba SEM_HISTORICO, que faz o
     Histórico Salarial e a base do INSS serem pulados com aviso. O PDF e o .PJC saem na mesma pasta (a do .json).
     """
     import openpyxl
-    from Calculo.leitura_planilha import ABA_SEM_HISTORICO, ABA_CSV_HISTORICO
+    from Calculo.leitura_planilha import ABA_SEM_HISTORICO, ABA_CSV_HISTORICO, ABA_BASE_INSS
 
     destino = Path(caminho_json).with_name(f"{execucao_id}_automacao_pedido.xlsx")
     livro = openpyxl.Workbook()
@@ -941,6 +1007,11 @@ def criar_planilha_do_pedido(caminho_json, pares, execucao_id, faltas=None, feri
         aba_csv = livro.create_sheet(ABA_CSV_HISTORICO)
         for nome, arquivo in historicos:
             aba_csv.append([nome, arquivo])
+    if base_inss:
+        # a Contribuição Social grava estes valores na coluna "Salários Pagos (Histórico)", casando por competência
+        aba_inss = livro.create_sheet(ABA_BASE_INSS)
+        for competencia, parcela, valor in base_inss:
+            aba_inss.append([competencia, parcela, valor])
     livro.save(destino)
     return str(destino)
 

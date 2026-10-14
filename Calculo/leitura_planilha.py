@@ -172,6 +172,19 @@ ABA_SEM_HISTORICO = "SEM_HISTORICO"
 ABA_CSV_HISTORICO = "CSV_HISTORICO"
 
 
+ABA_BASE_INSS = "BASE_INSS"
+
+
+def base_inss_do_pedido(caminho):
+    """[(MM/AAAA, 'SALARIO'|'13', valor)] da base do INSS enviada no .json (arquivos["base-inss"]); [] se não houver."""
+    with pd.ExcelFile(caminho) as planilha:
+        if ABA_BASE_INSS not in planilha.sheet_names:
+            return []
+        tabela = planilha.parse(ABA_BASE_INSS, header=None, dtype=str)
+    return [(str(c).strip(), str(p).strip(), float(v)) for c, p, v in zip(tabela[0], tabela[1], tabela[2])
+            if not pd.isna(c) and not pd.isna(v)]
+
+
 def csvs_de_historico(caminho):
     """[(nome, caminho do .csv)] de um pedido montado do .json com arquivos de histórico salarial; [] se não houver."""
     with pd.ExcelFile(caminho) as planilha:
