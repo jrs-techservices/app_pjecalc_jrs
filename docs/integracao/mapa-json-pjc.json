@@ -531,6 +531,78 @@
   },
   {
    "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "fgts_aliquota",
+   "xml": "fgts/Fgts/aliquota",
+   "traducao": "8% → OITO_POR_CENTO (visto); 2% → a confirmar (DOIS_POR_CENTO?)",
+   "a_confirmar": true,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "fgts_tipo_valor_multa · fgts_valor_multa_informado",
+   "xml": "…/tipoDoValorDaMulta · valorInformadoDaMulta",
+   "traducao": "Calculado → CALCULADA (visto); Informado → a confirmar; número",
+   "a_confirmar": true,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "fgts_percentual_multa · fgts_incidencia_multa",
+   "xml": "…/multaDoFgts · incidenciaDoFgts",
+   "traducao": "40% → QUARENTA_POR_CENTO (visto), 20% a confirmar; Sobre devido → SOBRE_O_TOTAL_DEVIDO (visto)",
+   "a_confirmar": true,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "fgts_excluir_aviso_multa · fgts_multa_467 · fgts_multa_lc110 · fgts_contribuicao_lc110",
+   "xml": "…/excluirAvisoDaMulta · multaDoArtigo467 · multa10 · contribuicaoSocial05",
+   "traducao": "booleano",
+   "a_confirmar": false,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "cs_apurar_segurado · cs_cobrar_reclamante · cs_corrigir_desconto_reclamante · cs_apurar_salarios_pagos",
+   "xml": "inss/Inss/…/apurarInssSegurado · cobrarInssDoReclamante · corrigirDescontoReclamante · inss/Inss/apurarInssSobreSalariosPagos",
+   "traducao": "booleano",
+   "a_confirmar": false,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "cs_aliquota_segurado · cs_aliquota_segurado_fixa · cs_limitar_teto",
+   "xml": "inss/Inss/tipoAliquotaSegurado · aliquotaSeguradoFixa · limitarTeto",
+   "traducao": "Segurado Empregado → SEGURADO_EMPREGADO (visto); demais a confirmar; percentual",
+   "a_confirmar": true,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "cs_aliquota_empregador · cs_cota_empresa · cs_sat · cs_terceiros",
+   "xml": "inss/Inss/tipoAliquotaEmpregador · aliquotaEmpresaFixa · aliquotaRATFixa · aliquotaTerceirosFixa",
+   "traducao": "Fixa → FIXA, Por Atividade Econômica → POR_ATIVIDADE_ECONOMICA (vistos); Por Período a confirmar; percentual (20.0000)",
+   "a_confirmar": true,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "cs_apurar_empresa · cs_apurar_sat · cs_apurar_terceiros",
+   "xml": "inss/Inss/apurarEmpresaPorAtividade · apurarRATPorAtividade · apurarTerceirosPorAtividade",
+   "traducao": "booleano",
+   "a_confirmar": false,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
+   "json": "cs_incidencia_* · contribuicaoSocial.simplesNacional[] · aliquotasPorPeriodo[]",
+   "xml": "inss/Inss/…/dataInicioPeriodo · dataTerminoPeriodo e as listas (List) do Inss",
+   "traducao": "epoch ms; nomes das listas a confirmar (nenhum cálculo lido tem Simples ou Por Período)",
+   "a_confirmar": true,
+   "conferivel": true
+  },
+  {
+   "secao": "5. FGTS · Contribuição Social · Correção · Custas · Honorários",
    "json": "CNAE (atividadeEconomica · cs_atividade_economica)",
    "xml": "inss/Inss/atividadeEconomica/AtividadeEconomica/externalRef",
    "traducao": "id da atividade na tabela do PJe-Calc 2.16.0 (505 = Fornecimento de alimentos preparados preponderantemente para empresas); null = nenhuma gravada",

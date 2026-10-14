@@ -1,4 +1,6 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, registrar
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -132,6 +134,82 @@ class FGTS(DadosCalculo):
             else:
                 opcao_nao.click()
 
+    def _pedido(self):
+        """Chaves fgts_* do .json (vazio se a planilha não as tem: aí vale o fluxo de sempre)."""
+        return {str(k).strip(): v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                if isinstance(k, str) and str(k).strip().startswith('fgts_') and not valor_vazio(v)}
+
+    def _marcar(self, driver, id_campo, marcar, rotulo):
+        caixa = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, id_campo)))
+        if not caixa.is_enabled():
+            registrar("FGTS", f"'{rotulo}' desabilitado na tela; não aplicado", origem="automacao")
+            return
+        if caixa.is_selected() != marcar:
+            caixa.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+        print(f"- [FGTS] {rotulo}: {'marcado' if marcar else 'desmarcado'}")
+
+    def aplicar_parametros_do_pedido(self, driver):
+        """Campos de telas.fgts do .json, na ordem da tela: tipo do valor (troca os campos) → percentual/incidência ou valor
+        → excluir aviso e 467 → LC 110. A multa já foi marcada em checkbox_multa."""
+        pedido = self._pedido()
+        if not pedido:
+            return
+        tipo = pedido.get('fgts_tipo_valor_multa')
+        if tipo:
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable(
+                (By.ID, f"formulario:tipoDoValorDaMulta:{0 if tipo == 'Calculado' else 1}"))).click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(2)
+            print(f"- [FGTS] tipo do valor da multa: {tipo}")
+        if pedido.get('fgts_percentual_multa'):
+            indice = 0 if pedido['fgts_percentual_multa'] == '20%' else 1
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f"formulario:multaDoFgts:{indice}"))).click()
+            time.sleep(1)
+            print(f"- [FGTS] percentual da multa: {pedido['fgts_percentual_multa']}")
+        if pedido.get('fgts_incidencia_multa'):
+            Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located(
+                (By.ID, 'formulario:incidenciaDoFgts')))).select_by_value(pedido['fgts_incidencia_multa'])
+            time.sleep(1)
+            print(f"- [FGTS] incidência da multa: {pedido['fgts_incidencia_multa']}")
+        if pedido.get('fgts_valor_multa_informado') is not None and tipo == 'Informado':
+            campo = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:valorInformadoDaMulta')))
+            campo.click()
+            campo.send_keys(Keys.CONTROL, "a")
+            campo.send_keys(Keys.DELETE)
+            campo.send_keys(f"{float(pedido['fgts_valor_multa_informado']):.2f}".replace(".", ","))
+            campo.send_keys(Keys.TAB)
+            print(f"- [FGTS] valor informado da multa: {pedido['fgts_valor_multa_informado']}")
+        for chave, id_campo, rotulo in (("fgts_excluir_aviso_multa", "formulario:excluirAvisoDaMulta", "Excluir aviso da base da multa"),
+                                        ("fgts_multa_467", "formulario:multaDoArtigo467", "Multa do artigo 467"),
+                                        ("fgts_multa_lc110", "formulario:multa10", "Contribuição Social 10% (LC 110)"),
+                                        ("fgts_contribuicao_lc110", "formulario:contribuiçãoSocial", "Contribuição Social 0,5% (LC 110)")):
+            valor = booleano_da_planilha(pedido.get(chave)) if pedido.get(chave) != "PADRAO" else None
+            if valor is not None:
+                self._marcar(driver, id_campo, valor, rotulo)
+
+    def aplicar_aliquota_do_pedido(self, driver):
+        """A alíquota é por ocorrência: 8% é o padrão; 2% vale o contrato todo, por Ocorrências › Regerar."""
+        if self._pedido().get('fgts_aliquota') != '2%':
+            return
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:ocorrencias'))).click()
+        self.objTools.aguardar_carregamento(driver)
+        time.sleep(2)
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:regerar'))).click()
+        self.objTools.aguardar_carregamento(driver)
+        time.sleep(2)
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:aliquota:0'))).click()
+        time.sleep(1)
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:confirmarGeracao'))).click()
+        self.objTools.aguardar_carregamento(driver)
+        time.sleep(2)
+        texto = driver.execute_script("return [...document.querySelectorAll('[id*=painelMensagens]')].map(m => m.textContent).join(' ');")
+        if 'Operação realizada com sucesso' in texto:
+            print("- [FGTS] alíquota 2% aplicada às ocorrências")
+        else:
+            registrar("FGTS", "alíquota 2% não confirmada nas ocorrências")
+
     def checkbox_multa(self, driver):
 
         # elementoCheckboxMulta = ""
@@ -164,7 +242,7 @@ class FGTS(DadosCalculo):
                     # --- Nova Funcionalidade ---#
                     # Nova Funcionalidade — Desmarcar a opção 'Excluir da Base da Multa o valor de FGTS sobre Aviso prévio'
                     checkbox_excluir_base = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.ID, "formulario:excluirAvisoDaMulta")))
-                    if checkbox_excluir_base.is_selected():
+                    if checkbox_excluir_base.is_selected() and 'fgts_excluir_aviso_multa' not in self._pedido():
                         checkbox_excluir_base.click()
                         print("- Checkbox Desabilitado - 'Excluir da Base da Multa o valor de FGTS sobre Aviso prévio'")
                 else:
@@ -173,7 +251,7 @@ class FGTS(DadosCalculo):
                     # --- Nova Funcionalidade ---#
                     # Nova Funcionalidade — Desmarcar a opção 'Excluir da Base da Multa o valor de FGTS sobre Aviso prévio'
                     checkbox_excluir_base = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.ID, "formulario:excluirAvisoDaMulta")))
-                    if checkbox_excluir_base.is_selected():
+                    if checkbox_excluir_base.is_selected() and 'fgts_excluir_aviso_multa' not in self._pedido():
                         checkbox_excluir_base.click()
                         print("- Checkbox Desabilitado - 'Excluir da Base da Multa o valor de FGTS sobre Aviso prévio'")
             except TimeoutException:
@@ -208,6 +286,7 @@ class FGTS(DadosCalculo):
         self.checkbox_multa(driver)
         # Tempo de Controle
         time.sleep(self.delayG)
+        self.aplicar_parametros_do_pedido(driver)
         self.salvar(driver)
         # Aguardar Processamento
         self.objTools.aguardar_carregamento(driver)
@@ -216,6 +295,7 @@ class FGTS(DadosCalculo):
         self.verificacao(driver)
         # Tempo de Controle
         time.sleep(self.delayG)
+        self.aplicar_aliquota_do_pedido(driver)
 
         # - Limpar Temp
         self.objTools.limparFilesTemp()

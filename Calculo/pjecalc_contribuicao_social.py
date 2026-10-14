@@ -10,6 +10,7 @@ import xlrd
 import time
 import os
 import gc
+import json
 #
 # from Calculo.pjecalc_dados_calculo import DadosCalculo
 from Tools.pjecalc_control import Control
@@ -640,6 +641,110 @@ class ContribuicaoSocial:
                 self.definir_periodos_simples_nacional(driver)
                 time.sleep(1)
 
+    # --- janela Regerar a partir do .json (chaves cs_*; sem elas, vale o fluxo da planilha) ---
+    def _pedido(self):
+        return {str(k).strip(): v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                if isinstance(k, str) and str(k).strip().startswith('cs_') and not valor_vazio(v)}
+
+    def _planilha_marca(self, chave):
+        valores = [v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str) and k.strip() == chave]
+        return bool(valores) and booleano_da_planilha(valores[0]) is True
+
+    @staticmethod
+    def _percentual(valor):
+        return f"{float(valor):.4f}".replace(".", ",")
+
+    def _digitar(self, driver, id_campo, texto):
+        campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo)))
+        campo.click()
+        campo.send_keys(Keys.CONTROL, "a")
+        campo.send_keys(Keys.DELETE)
+        campo.send_keys(texto)
+        campo.send_keys(Keys.TAB)
+        self.objTools.aguardar_carregamento(driver)
+        time.sleep(0.5)
+
+    def _opcao(self, driver, id_campo):
+        campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo)))
+        if not campo.is_selected():
+            campo.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+
+    def _erros_na_tela(self, driver):
+        return driver.execute_script("""return [...document.querySelectorAll('.erro, .linkErro, .rich-messages-label')]
+            .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.textContent.split('//<!')[0].trim()).filter(t => t);""")
+
+    def _incluir(self, driver, id_botao, rotulo):
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_botao))).click()
+        self.objTools.aguardar_carregamento(driver)
+        time.sleep(1)
+        erros = self._erros_na_tela(driver)
+        if erros:
+            from Tools.pendencias import registrar
+            registrar("Contribuição Social", f"{rotulo} não incluído: {' | '.join(erros)}")
+
+    def aplicar_segurado_do_pedido(self, driver):
+        pedido = self._pedido()
+        if 'cs_aliquota_segurado_fixa' in pedido:
+            # este campo tem 2 decimais: "11,0000" vira 110000 e a tela o limita a 100,00
+            self._digitar(driver, 'formulario:fixaInput', f"{float(pedido['cs_aliquota_segurado_fixa']):.2f}".replace(".", ","))
+        if 'cs_limitar_teto' in pedido:
+            caixa = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:limitarTeto')))
+            if caixa.is_selected() != booleano_da_planilha(pedido['cs_limitar_teto']):
+                caixa.click()
+                self.objTools.aguardar_carregamento(driver)
+
+    def aplicar_empregador_do_pedido(self, driver):
+        """True se o .json definiu a alíquota do empregador; False → fluxo da planilha (enquadramento/CNAE)."""
+        tipo = self._pedido().get('cs_aliquota_empregador')
+        if not tipo:
+            return False
+        enquadramento = [c for c in ('processo_de_agroindustria', 'empresa_com_desoneracao', 'entidade_filantropica')
+                         if self._planilha_marca(c)]
+        if enquadramento:
+            print(f"- [Contribuição Social]: a planilha marca {', '.join(enquadramento)}; a alíquota do empregador do .json não é usada")
+            return False
+        pedido = self._pedido()
+        print(f"- [Contribuição Social]: alíquota do empregador do pedido: {tipo}")
+        if tipo == 'Por Atividade Econômica':
+            self.preencher_atividade_economica(driver)
+        elif tipo == 'Fixa':
+            self._opcao(driver, 'formulario:aliquotaEmpregador:2')
+            for chave, campo in (('cs_cota_empresa', 'aliquotaEmpresaFixa'), ('cs_sat', 'aliquotaRatFixa'),
+                                 ('cs_terceiros', 'aliquotaTerceirosFixa')):
+                if chave in pedido:
+                    self._digitar(driver, f'formulario:{campo}', self._percentual(pedido[chave]))
+        elif tipo == 'Por Período':
+            self._opcao(driver, 'formulario:aliquotaEmpregador:1')
+            for inicio, fim, empresa, sat, terceiros in json.loads(pedido.get('cs_aliquotas_por_periodo') or '[]'):
+                self._digitar(driver, 'formulario:dataInicioPeriodoInputDate', inicio)
+                self._digitar(driver, 'formulario:dataTerminoPeriodoInputDate', fim)
+                self._digitar(driver, 'formulario:aliquotaEmpresaPorPeriodo', self._percentual(empresa))
+                self._digitar(driver, 'formulario:aliquotaRatPorPeriodo', self._percentual(sat))
+                if terceiros is not None:
+                    self._digitar(driver, 'formulario:aliquotaTerceirosPorPeriodo', self._percentual(terceiros))
+                self._incluir(driver, 'formulario:cmdIncluirPorPeriodo', f"período de alíquotas {inicio} a {fim}")
+        return True
+
+    def aplicar_incidencia_e_simples_do_pedido(self, driver):
+        pedido = self._pedido()
+        for chave, campo in (('cs_incidencia_devidos_inicio', 'periodoInicialDEVIDOSInputDate'),
+                             ('cs_incidencia_devidos_fim', 'periodoFinalDEVIDOSInputDate'),
+                             ('cs_incidencia_pagos_inicio', 'periodoInicialPAGOSInputDate'),
+                             ('cs_incidencia_pagos_fim', 'periodoFinalPAGOSInputDate')):
+            if chave in pedido:
+                self._digitar(driver, f'formulario:{campo}', str(pedido[chave]))
+        if 'cs_simples_nacional' in pedido:
+            if self._planilha_marca('empresa_enquadrada_simples'):
+                print("- [Contribuição Social]: a planilha já traz o Simples Nacional; a lista do .json não é usada")
+                return
+            for inicio, fim in json.loads(pedido['cs_simples_nacional']):
+                self._digitar(driver, 'formulario:dataInicioSimplesInputDate', inicio)
+                self._digitar(driver, 'formulario:dataTerminoSimplesInputDate', fim)
+                self._incluir(driver, 'formulario:cmdIncluirPeriodoSimples', f"período do Simples {inicio} a {fim}")
+
     def confirmar_operacao(self, driver):
         WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:confirmarGeracao'))).click()
 
@@ -873,8 +978,11 @@ class ContribuicaoSocial:
         self.selecionar_aliquota_segurado(driver)
         # Tempo de controle
         time.sleep(self.delayG)
+        self.aplicar_segurado_do_pedido(driver)
         # Para planilha base v3.34 - Início
-        self.definir_aliquota_empregador_v3_34(driver)
+        if not self.aplicar_empregador_do_pedido(driver):
+            self.definir_aliquota_empregador_v3_34(driver)
+        self.aplicar_incidencia_e_simples_do_pedido(driver)
         # Tempo de controle
         time.sleep(self.delayG)
         self.confirmar_operacao(driver)

@@ -783,6 +783,250 @@ def _arquivos(r, caminho_json):
 
 # ---------------------------------------------------------------- bloco novo: telas
 
+INCIDENCIAS_MULTA_FGTS = {
+    "Sobre devido": "SOBRE_O_TOTAL_DEVIDO", "Sobre saldo e/ou saque": "SOBRE_DEPOSITADO_SACADO",
+    "Sobre diferença": "SOBRE_DIFERENCA", "Sobre devido + saldo e/ou saque": "SOBRE_TOTAL_DEVIDO_MAIS_SAQUE_E_OU_SALDO",
+    "Sobre devido - saldo e/ou saque": "SOBRE_TOTAL_DEVIDO_MENOS_SAQUE_E_OU_SALDO",
+}
+
+
+def _fgts_completo(r, fgts):
+    """Campos da tela FGTS além de destino e multa. Os da multa só existem com a multa marcada (a tela os desabilita),
+    e percentual/incidência só com valor Calculado (com Informado a tela troca por um campo de valor)."""
+    base = "telas.fgts"
+    multa = r.valores.get("multa_fgts") == "Sim"
+
+    def booleano(campo, chave):
+        if campo not in fgts:
+            return None
+        if not isinstance(fgts[campo], bool):
+            r.erro(f"{base}.{campo}", fgts[campo], "use true ou false")
+            return None
+        r.usar(f"{base}.{campo}", chave, _texto(fgts[campo]))
+        return fgts[campo]
+
+    def opcao(campo, opcoes):
+        valor = fgts.get(campo)
+        if valor in (None, ""):
+            return None
+        alvo = str(valor).replace("\u2212", "-").strip()
+        if isinstance(valor, (int, float)) and not isinstance(valor, bool) and float(valor).is_integer():
+            alvo = f"{int(valor)}%"  # 8 \u2192 "8%", 40 \u2192 "40%"
+        if alvo in opcoes:
+            return alvo
+        r.erro(f"{base}.{campo}", valor, "valor não reconhecido", list(opcoes))
+        return None
+
+    def so_com_multa(campo):
+        if campo in fgts and not multa:
+            r.erro(f"{base}.{campo}", fgts[campo], "só com fgts_calcular_multa = true (a tela o desabilita sem a multa)")
+            return False
+        return campo in fgts
+
+    aliquota = opcao("fgts_aliquota", ("8%", "2%"))
+    r.usar(f"{base}.fgts_aliquota", "fgts_aliquota", aliquota)
+    booleano("fgts_multa_lc110", "fgts_multa_lc110")
+    booleano("fgts_contribuicao_lc110", "fgts_contribuicao_lc110")
+
+    tipo = opcao("fgts_tipo_valor_multa", ("Calculado", "Informado")) if so_com_multa("fgts_tipo_valor_multa") else None
+    r.usar(f"{base}.fgts_tipo_valor_multa", "fgts_tipo_valor_multa", tipo)
+    for campo in ("fgts_percentual_multa", "fgts_incidencia_multa"):
+        if so_com_multa(campo) and tipo == "Informado":
+            r.erro(f"{base}.{campo}", fgts[campo], "com valor Informado a tela não tem percentual nem incidência")
+    if so_com_multa("fgts_percentual_multa") and tipo != "Informado":
+        r.usar(f"{base}.fgts_percentual_multa", "fgts_percentual_multa", opcao("fgts_percentual_multa", ("40%", "20%")))
+    if so_com_multa("fgts_incidencia_multa") and tipo != "Informado":
+        incidencia = opcao("fgts_incidencia_multa", tuple(INCIDENCIAS_MULTA_FGTS) + tuple(INCIDENCIAS_MULTA_FGTS.values()))
+        r.usar(f"{base}.fgts_incidencia_multa", "fgts_incidencia_multa", INCIDENCIAS_MULTA_FGTS.get(incidencia, incidencia))
+    if "fgts_valor_multa_informado" in fgts:
+        valor = numero_da_planilha(fgts["fgts_valor_multa_informado"])
+        if tipo != "Informado":
+            r.erro(f"{base}.fgts_valor_multa_informado", fgts["fgts_valor_multa_informado"], "só com fgts_tipo_valor_multa = Informado")
+        elif valor is None:
+            r.erro(f"{base}.fgts_valor_multa_informado", fgts["fgts_valor_multa_informado"], "valor em reais deve ser número")
+        else:
+            r.usar(f"{base}.fgts_valor_multa_informado", "fgts_valor_multa_informado", valor)
+    elif tipo == "Informado":
+        r.erro(f"{base}.fgts_valor_multa_informado", None, "obrigatório com fgts_tipo_valor_multa = Informado")
+    if so_com_multa("fgts_multa_467"):
+        booleano("fgts_multa_467", "fgts_multa_467")
+    if so_com_multa("fgts_excluir_aviso_multa"):
+        booleano("fgts_excluir_aviso_multa", "fgts_excluir_aviso_multa")
+    elif multa:
+        # sem a chave, fica o padrão da tela (marcado); a automação antiga o desmarcava
+        r.valores["fgts_excluir_aviso_multa"] = "PADRAO"
+
+
+ALIQUOTAS_SEGURADO = ("Segurado Empregado", "Empregado Doméstico", "Fixa")
+ALIQUOTAS_EMPREGADOR = ("Por Atividade Econômica", "Por Período", "Fixa")
+
+
+def _contribuicao_social_completa(r, cs):
+    """telas.contribuicao-social + contribuicaoSocial (raiz). Na tela principal só ficam os quatro checkboxes; o resto
+    (alíquotas, períodos de incidência, Simples) é a janela de Ocorrências › Regerar, gravada no Confirmar.
+
+    Os checkboxes e a alíquota do segurado usam as chaves da planilha (cont_social_*); o resto vai em cs_* e as duas
+    listas como texto .json. Campo fora da condição em que a tela o mostra → 400.
+    """
+    base = "telas.contribuicao-social"
+    raiz = r.dados.get("contribuicaoSocial")
+    raiz = raiz if isinstance(raiz, dict) else {}
+    if "contribuicaoSocial" in r.dados and not isinstance(r.dados["contribuicaoSocial"], dict):
+        r.erro("contribuicaoSocial", r.dados["contribuicaoSocial"], "deve ser um objeto { simplesNacional, aliquotasPorPeriodo }")
+
+    def booleano(campo, chave, condicao=True, motivo=""):
+        if campo not in cs:
+            return None
+        if not isinstance(cs[campo], bool):
+            r.erro(f"{base}.{campo}", cs[campo], "use true ou false")
+            return None
+        if not condicao:
+            r.erro(f"{base}.{campo}", cs[campo], motivo)
+            return None
+        r.usar(f"{base}.{campo}", chave, _texto(cs[campo]))
+        return cs[campo]
+
+    def opcao(campo, opcoes):
+        valor = cs.get(campo)
+        if valor in (None, ""):
+            return None
+        if str(valor).strip() in opcoes:
+            return str(valor).strip()
+        r.erro(f"{base}.{campo}", valor, "valor não reconhecido", list(opcoes))
+        return None
+
+    def percentual(caminho, valor):
+        numero = numero_da_planilha(valor)
+        if numero is None or not 0 <= numero <= 100:
+            r.erro(caminho, valor, "percentual deve ser número de 0 a 100")
+            return None
+        return float(numero)
+
+    def so_com(campo, condicao, motivo):
+        if campo in cs and not condicao:
+            r.erro(f"{base}.{campo}", cs[campo], motivo)
+            return False
+        return campo in cs
+
+    # tela principal
+    apurar = booleano("cs_apurar_segurado", "cont_social_apurar_segurado")
+    sem_apurar = "só com cs_apurar_segurado = true (a tela o desabilita sem ele)"
+    cobrar = booleano("cs_cobrar_reclamante", "cont_social_cobrar_reclamante", apurar is not False, sem_apurar)
+    booleano("cs_corrigir_desconto_reclamante", "cont_social_com_correcao_trabalhista", apurar is not False, sem_apurar)
+    if cobrar is False and cs.get("cs_corrigir_desconto_reclamante") is True:
+        # "Com Correção Trabalhista" só aparece na tela com "Cobrar do Reclamante" marcado
+        r.erro(f"{base}.cs_corrigir_desconto_reclamante", True, "só com cs_cobrar_reclamante = true (a tela o esconde sem ele)")
+    booleano("cs_apurar_salarios_pagos", "cont_social_salario_pagos")
+
+    # janela Regerar: segurado
+    segurado = opcao("cs_aliquota_segurado", ALIQUOTAS_SEGURADO)
+    r.usar(f"{base}.cs_aliquota_segurado", "cont_social_aliquota_segurado", segurado)
+    so_fixa = "só com cs_aliquota_segurado = Fixa"
+    if so_com("cs_aliquota_segurado_fixa", segurado == "Fixa", so_fixa):
+        r.usar(f"{base}.cs_aliquota_segurado_fixa", "cs_aliquota_segurado_fixa",
+               percentual(f"{base}.cs_aliquota_segurado_fixa", cs["cs_aliquota_segurado_fixa"]))
+    elif segurado == "Fixa":
+        r.erro(f"{base}.cs_aliquota_segurado_fixa", None, "obrigatório com cs_aliquota_segurado = Fixa")
+    booleano("cs_limitar_teto", "cs_limitar_teto", segurado == "Fixa", so_fixa)
+
+    # janela Regerar: empregador
+    empregador = opcao("cs_aliquota_empregador", ALIQUOTAS_EMPREGADOR)
+    r.usar(f"{base}.cs_aliquota_empregador", "cs_aliquota_empregador", empregador)
+    por_atividade = "só com cs_aliquota_empregador = Por Atividade Econômica"
+    for campo, chave in (("cs_apurar_empresa", "cont_social_apurar_empresa"), ("cs_apurar_sat", "cont_social_apurar_sat"),
+                         ("cs_apurar_terceiros", "cont_social_apurar_terceiros")):
+        booleano(campo, chave, empregador in (None, "Por Atividade Econômica"), por_atividade)
+    if "cs_atividade_economica" in cs and empregador not in (None, "Por Atividade Econômica"):
+        r.erro(f"{base}.cs_atividade_economica", cs["cs_atividade_economica"], por_atividade)
+    elif empregador == "Por Atividade Econômica" and not r.valores.get("cont_social_aliquota_empregador"):
+        r.erro(f"{base}.cs_atividade_economica", None,
+               "obrigatório com cs_aliquota_empregador = Por Atividade Econômica (ou dadosDoCalculo.atividadeEconomica)")
+    elif empregador not in (None, "Por Atividade Econômica") and r.valores.get("cont_social_aliquota_empregador"):
+        r.avisos.append(f"Contribuição Social: alíquota do empregador '{empregador}'; a atividade econômica "
+                        f"'{r.valores['cont_social_aliquota_empregador']}' não é usada")
+    for campo in ("cs_cota_empresa", "cs_sat", "cs_terceiros"):
+        if so_com(campo, empregador == "Fixa", "só com cs_aliquota_empregador = Fixa") and cs[campo] not in (None, ""):
+            r.usar(f"{base}.{campo}", campo, percentual(f"{base}.{campo}", cs[campo]))
+
+    # contrato, para as datas e as listas
+    admissao = r.valores.get("data_admissao")
+    final = r.valores.get("termino_calculo") or r.valores.get("data_rescisao")
+    d_admissao = ORIGEM_EXCEL + timedelta(days=admissao) if isinstance(admissao, int) else None
+    d_final = ORIGEM_EXCEL + timedelta(days=final) if isinstance(final, int) else None
+
+    for grupo in ("devidos", "pagos"):
+        datas = {}
+        for ponta in ("inicio", "fim"):
+            campo = f"cs_incidencia_{grupo}_{ponta}"
+            if cs.get(campo) in (None, ""):
+                continue
+            serial = r.data(f"{base}.{campo}", cs[campo])
+            if serial is not None:
+                datas[ponta] = ORIGEM_EXCEL + timedelta(days=serial)
+                r.usar(f"{base}.{campo}", campo, f"{datas[ponta]:%d/%m/%Y}")
+        if len(datas) == 2 and datas["fim"] < datas["inicio"]:
+            r.erro(f"{base}.cs_incidencia_{grupo}_fim", cs[f"cs_incidencia_{grupo}_fim"], "anterior ao início")
+
+    def periodos(nome, extras):
+        caminho = f"contribuicaoSocial.{nome}"
+        lista = raiz.get(nome)
+        if lista in (None, []):
+            return []
+        if not isinstance(lista, list) or not all(isinstance(i, dict) for i in lista):
+            r.erro(caminho, lista, "deve ser uma lista de { inicio, fim, … }")
+            return []
+        resultado, erros_antes = [], len(r.erros)
+        for n, item in enumerate(lista, start=1):
+            onde = f"{caminho}[{n}]"
+            desconhecidos = set(item) - {"inicio", "fim"} - set(extras)
+            if desconhecidos:
+                r.erro(onde, item, f"campo(s) não reconhecido(s): {', '.join(sorted(desconhecidos))}")
+                continue
+            inicio, fim = str(item.get("inicio") or ""), str(item.get("fim") or "")
+            if not COMPETENCIA.match(inicio) or not COMPETENCIA.match(fim):
+                r.erro(onde, item, "inicio e fim em MM/AAAA")
+                continue
+            a, b = (int(inicio[3:]), int(inicio[:2])), (int(fim[3:]), int(fim[:2]))
+            if b < a:
+                r.erro(onde, item, "fim anterior ao início")
+                continue
+            if d_admissao and d_final and not ((d_admissao.year, d_admissao.month) <= a and b <= (d_final.year, d_final.month)):
+                r.erro(onde, item, f"fora do contrato ({d_admissao:%m/%Y} a {d_final:%m/%Y})")
+                continue
+            valores = []
+            for extra, obrigatorio in extras.items():
+                if item.get(extra) in (None, ""):
+                    if obrigatorio:
+                        r.erro(onde, item, f"'{extra}' obrigatório")
+                    valores.append(None)
+                else:
+                    valores.append(percentual(f"{onde}.{extra}", item[extra]))
+            resultado.append([inicio, fim, a, b] + valores)
+        ordenados = sorted(resultado, key=lambda p: p[2])
+        for anterior, seguinte in zip(ordenados, ordenados[1:]):
+            if seguinte[2] <= anterior[3]:
+                r.erro(caminho, [anterior[:2], seguinte[:2]], f"períodos sobrepostos: {anterior[0]}–{anterior[1]} e {seguinte[0]}–{seguinte[1]}")
+        if len(r.erros) != erros_antes:
+            return []
+        for folha in _folhas({nome: lista}, "contribuicaoSocial"):
+            r.usados.add(folha)
+        return [[p[0], p[1]] + p[4:] for p in ordenados]
+
+    simples = periodos("simplesNacional", {})
+    if simples:
+        r.valores["cs_simples_nacional"] = json.dumps(simples)
+    por_periodo = periodos("aliquotasPorPeriodo", {"empresa": True, "sat": True, "terceiros": False})
+    if raiz.get("aliquotasPorPeriodo") and empregador != "Por Período":
+        r.erro("contribuicaoSocial.aliquotasPorPeriodo", raiz["aliquotasPorPeriodo"], "só com cs_aliquota_empregador = Por Período")
+    elif por_periodo:
+        r.valores["cs_aliquotas_por_periodo"] = json.dumps(por_periodo)
+    elif empregador == "Por Período" and not any(e["campo"].startswith("contribuicaoSocial.aliquotasPorPeriodo") for e in r.erros):
+        r.erro("contribuicaoSocial.aliquotasPorPeriodo", None, "obrigatório (ao menos um período) com cs_aliquota_empregador = Por Período")
+    for chave in raiz:
+        if chave not in ("simplesNacional", "aliquotasPorPeriodo"):
+            r.ignorar(f"contribuicaoSocial.{chave}", "campo não reconhecido")
+
+
 def _telas(r):
     telas = r.dados.get("telas") or {}
     dados = telas.get("dados-do-calculo") or {}
@@ -893,6 +1137,7 @@ def _telas(r):
         r.usar("telas.fgts.fgts_destino", "destino_fgts", destino)
     if "fgts_calcular_multa" in fgts:
         r.usar("telas.fgts.fgts_calcular_multa", "multa_fgts", _sim_nao(bool(fgts["fgts_calcular_multa"])))
+    _fgts_completo(r, fgts)
 
     custas = telas.get("custas-judiciais") or {}
     if "custas_reclamado" in custas:
@@ -920,6 +1165,7 @@ def _telas(r):
                    f"diferente de dadosDoCalculo.atividadeEconomica ('{anterior}'); mande a mesma atividade nos dois")
         else:
             r.usar("telas.contribuicao-social.cs_atividade_economica", "cont_social_aliquota_empregador", atividade)
+    _contribuicao_social_completa(r, contribuicao)
 
     correcao = telas.get("correcao-juros-multa") or {}
     if "cj_correcao" in correcao:
@@ -1043,7 +1289,7 @@ def interpretar(caminho):
             r.valores.setdefault(gatilho, "<nao_preenchido>")
     from servico.verbas_pedido import interpretar_verbas
     interpretar_verbas(r)
-    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados")}):
+    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial")}):
         if folha and folha not in META and folha not in r.usados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r

@@ -117,6 +117,15 @@ As verbas principais **não ficam numa lista própria**: `verbas/Set` traz os **
 |---|---|---|
 | `fgts.destino` · `telas.fgts.fgts_destino` | `fgts/Fgts/destinoDoFgts` | `RECOLHER` → `DEPOSITAR` (visto); `PAGAR` → **a confirmar** |
 | `fgts.multaDoFgts` · `fgts_calcular_multa` | `fgts/Fgts/multa` | booleano |
+| `fgts_aliquota` | `fgts/Fgts/aliquota` | `8%` → `OITO_POR_CENTO` (visto); `2%` → **a confirmar** (`DOIS_POR_CENTO`?) |
+| `fgts_tipo_valor_multa` · `fgts_valor_multa_informado` | `…/tipoDoValorDaMulta` · `valorInformadoDaMulta` | `Calculado` → `CALCULADA` (visto); `Informado` → **a confirmar**; número |
+| `fgts_percentual_multa` · `fgts_incidencia_multa` | `…/multaDoFgts` · `incidenciaDoFgts` | `40%` → `QUARENTA_POR_CENTO` (visto), `20%` **a confirmar**; `Sobre devido` → `SOBRE_O_TOTAL_DEVIDO` (visto) |
+| `fgts_excluir_aviso_multa` · `fgts_multa_467` · `fgts_multa_lc110` · `fgts_contribuicao_lc110` | `…/excluirAvisoDaMulta` · `multaDoArtigo467` · `multa10` · `contribuicaoSocial05` | booleano |
+| `cs_apurar_segurado` · `cs_cobrar_reclamante` · `cs_corrigir_desconto_reclamante` · `cs_apurar_salarios_pagos` | `inss/Inss/…/apurarInssSegurado` · `cobrarInssDoReclamante` · `corrigirDescontoReclamante` · `inss/Inss/apurarInssSobreSalariosPagos` | booleano |
+| `cs_aliquota_segurado` · `cs_aliquota_segurado_fixa` · `cs_limitar_teto` | `inss/Inss/tipoAliquotaSegurado` · `aliquotaSeguradoFixa` · `limitarTeto` | `Segurado Empregado` → `SEGURADO_EMPREGADO` (visto); demais **a confirmar**; percentual |
+| `cs_aliquota_empregador` · `cs_cota_empresa` · `cs_sat` · `cs_terceiros` | `inss/Inss/tipoAliquotaEmpregador` · `aliquotaEmpresaFixa` · `aliquotaRATFixa` · `aliquotaTerceirosFixa` | `Fixa` → `FIXA`, `Por Atividade Econômica` → `POR_ATIVIDADE_ECONOMICA` (vistos); `Por Período` **a confirmar**; percentual (`20.0000`) |
+| `cs_apurar_empresa` · `cs_apurar_sat` · `cs_apurar_terceiros` | `inss/Inss/apurarEmpresaPorAtividade` · `apurarRATPorAtividade` · `apurarTerceirosPorAtividade` | booleano |
+| `cs_incidencia_*` · `contribuicaoSocial.simplesNacional[]` · `aliquotasPorPeriodo[]` | `inss/Inss/…/dataInicioPeriodo` · `dataTerminoPeriodo` e as listas (`List`) do `Inss` | epoch ms; nomes das listas **a confirmar** (nenhum cálculo lido tem Simples ou Por Período) |
 | CNAE (`atividadeEconomica` · `cs_atividade_economica`) | `inss/Inss/atividadeEconomica/AtividadeEconomica/externalRef` (+ `tipoAliquotaEmpregador = POR_ATIVIDADE_ECONOMICA`) | id da atividade na tabela do PJe-Calc 2.16.0 (ex.: `505` = "Fornecimento de alimentos preparados preponderantemente para empresas"); traduza pela tabela de atividades e compare a descrição. `null` = nenhuma atividade gravada (ex.: CNAE não encontrada) |
 | `cj_correcao` | `parametrosDeAtualizacao/ParametrosDeAtualizacao/indiceTrabalhista` | `IPCA-E` → `IPCAE` (visto); demais **a confirmar** (o texto da tela sem pontuação, em maiúsculas) |
 | `custas.tipoDeCustasDeConhecimentoDoReclamado` | `custasJudiciais/CustasJudiciais/tipoDeCustasDeConhecimentoDoReclamado` | mesmo código |

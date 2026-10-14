@@ -209,6 +209,49 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 `salario-familia`, `seguro-desemprego`, `previdencia-privada`, `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`
 ("tela ainda não automatizada"); qualquer outro campo ("campo não reconhecido" / "campo sem correspondente na automação").
 
+### `telas.fgts`: a tela inteira (implementado em 14/10/2026)
+
+| campo | valores | regra na porta |
+|---|---|---|
+| `fgts_aliquota` | `"8%"` · `"2%"` (ou `8` · `2`) | `2%` é gravado em Ocorrências › Regerar › Confirmar |
+| `fgts_multa_lc110` · `fgts_contribuicao_lc110` | `true`/`false` | |
+| `fgts_tipo_valor_multa` | `"Calculado"` · `"Informado"` | só com `fgts_calcular_multa = true` |
+| `fgts_percentual_multa` | `"40%"` · `"20%"` (ou `40` · `20`) | só com multa e valor Calculado |
+| `fgts_incidencia_multa` | lista do §3 (`Sobre devido`, …, `Sobre devido - saldo e/ou saque`) | só com multa e valor Calculado |
+| `fgts_valor_multa_informado` | número (reais) | obrigatório com `Informado`; proibido nos outros casos |
+| `fgts_multa_467` · `fgts_excluir_aviso_multa` | `true`/`false` | só com multa; sem `fgts_excluir_aviso_multa` fica o padrão da tela (marcado) |
+
+### `telas.contribuicao-social` e `contribuicaoSocial`: a tela inteira (implementado em 14/10/2026)
+
+Na tela principal ficam os quatro checkboxes; o resto é a janela de **Ocorrências › Regerar**, gravada no Confirmar
+(`tipoRegeracao` fica no padrão, *Manter*). Campo fora da condição em que a tela o mostra → `400`.
+
+| campo | valores | condição |
+|---|---|---|
+| `cs_apurar_segurado` · `cs_apurar_salarios_pagos` | `true`/`false` | |
+| `cs_cobrar_reclamante` · `cs_corrigir_desconto_reclamante` | `true`/`false` | não com `cs_apurar_segurado = false`; `cs_corrigir_desconto_reclamante = true` exige `cs_cobrar_reclamante` ≠ `false` (a tela só mostra "Com Correção Trabalhista" com "Cobrar" marcado) |
+| `cs_aliquota_segurado` | `"Segurado Empregado"` · `"Empregado Doméstico"` · `"Fixa"` | |
+| `cs_aliquota_segurado_fixa` | percentual (`11`; a tela guarda 2 decimais) | obrigatório com segurado `Fixa`, proibido sem |
+| `cs_limitar_teto` | `true`/`false` | só com segurado `Fixa`; sem ele, padrão da tela (marcado) |
+| `cs_aliquota_empregador` | `"Por Atividade Econômica"` · `"Por Período"` · `"Fixa"` | sem ele, vale o fluxo de antes (CNAE se houver) |
+| `cs_atividade_economica` · `cs_apurar_empresa` · `cs_apurar_sat` · `cs_apurar_terceiros` | CNAE · `true`/`false` | só com `Por Atividade Econômica`, que exige a CNAE (aqui ou em `dadosDoCalculo.atividadeEconomica`) |
+| `cs_cota_empresa` · `cs_sat` · `cs_terceiros` | percentual (`20`, `3`, `5.8`) | só com empregador `Fixa`; ausentes ficam no padrão da tela |
+| `cs_incidencia_devidos_inicio` · `_fim` · `cs_incidencia_pagos_inicio` · `_fim` | data `AAAA-MM-DD` | fim ≥ início; sem elas, o período do cálculo |
+
+Na raiz do `.json`:
+
+```json
+"contribuicaoSocial": {
+  "simplesNacional":     [{ "inicio": "01/2024", "fim": "06/2024" }],
+  "aliquotasPorPeriodo": [{ "inicio": "12/2023", "fim": "06/2024", "empresa": 20, "sat": 3, "terceiros": 5.8 }]
+}
+```
+
+Competências `MM/AAAA`, fim ≥ início, sem sobreposição, dentro do contrato (admissão → demissão/data final). `simplesNacional`
+vale com qualquer alíquota; `aliquotasPorPeriodo` só com `Por Período`, e é obrigatória nela (`empresa` e `sat` obrigatórios,
+`terceiros` opcional). Período que o PJe-Calc recusar ao incluir vira pendência na execução. Com planilha que marca
+agroindústria/desoneração/filantrópica (ou Simples), a planilha prevalece.
+
 ### `advogados`: advogados de cada parte (Dados do Cálculo)
 
 ```json
@@ -292,8 +335,7 @@ O `202` do `POST /calculos` já traz `execucao.lancamentos_resumo` com `usados`,
 
 ### Ainda não lido de `telas`
 
-`contribuicao-social` (exceto `cs_atividade_economica`) e `imposto-de-renda` (vão para `ignorados` com o motivo). Quando implementarmos, usaremos os campos
-que vocês já mandam (`cs_cnae`, `cs_sat`, `cs_cota_empresa`, …) — mandem um exemplo real com eles preenchidos.
+`imposto-de-renda` (vai para `ignorados` com o motivo). FGTS e Contribuição Social são lidos por inteiro (seções acima).
 
 ## 3. Listas de cada tela, como o PJe-Calc as mostra
 
