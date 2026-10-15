@@ -2612,65 +2612,38 @@ class DadosCalculo:
 
 
     # [PONTOS_FACULTATIVOS]
-    def remover_ponto_facultativo_carnaval(self, driver):
-
+    def _remover_ponto_facultativo(self, driver, nome):
+        """Exclui a linha `nome` da lista de pontos facultativos (só dentro dessa tabela: as linhas de advogados e de
+        exceções, lançadas antes, também são rich-table-row e deslocavam o índice) e confere que saiu."""
+        # depois de uma exclusão o PJe-Calc redesenha a lista sem o id na <table>; as células mantêm o prefixo
+        xpath_linha = (f'//tr[td[starts-with(@id, "formulario:listagemPontosFacultativos:")][normalize-space()="{nome}"]]')
+        self.objTools.aguardar_carregamento(driver)
         try:
-            # Aguarda até que os elementos da tabela estejam visíveis
-            elementos = WebDriverWait(driver, self.delay).until(EC.presence_of_all_elements_located((By.XPATH, '//tr[contains(@class, "rich-table-row")]')))
+            # a tabela se redesenha depois de cada exclusão: espera a linha em vez de olhar uma vez só
+            linha = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath_linha)))
+        except TimeoutException:
+            print(f"- [PONTO_FACULTATIVO]: {nome} não está na lista; nada a remover")
+            return
+        linha.find_element(By.XPATH, './/a[contains(@class, "linkExcluir")]').click()
+        try:
+            WebDriverWait(driver, 3).until(EC.visibility_of_element_located((By.ID, "popup_ok"))).click()
+        except TimeoutException:
+            pass
+        self.objTools.aguardar_carregamento(driver)
+        sleep(1)
+        if driver.find_elements(By.XPATH, xpath_linha):
+            registrar("Dados do Cálculo", f"ponto facultativo {nome} pedido como removido, mas continua na lista", origem="automacao")
+        else:
+            print(f"- [PONTO_FACULTATIVO]: {nome} removido")
 
-            # Itera sobre os elementos encontrados para verificar se contêm o texto "CORPUS CHRISTI"
-            for indice, elemento in enumerate(elementos):
-                # Procura pela célula que contém o texto
-                celula_texto = elemento.find_element(By.XPATH, './td[contains(@class, "rich-table-cell")][2]')  # Índice [2] refere-se à segunda célula <td>
-                # print(f"{indice}) - {celula_texto.text}")
-                if celula_texto.text == "CARNAVAL":
-                    # print(f"- [LOCALIZADO]: {indice}) - {celula_texto.text}")
-                    # Encontra o link para clicar baseado no id do primeiro elemento <td>
-                    link_para_clicar = elemento.find_element(By.XPATH, f'./td[@id="formulario:listagemPontosFacultativos:{indice}:j_id578"]/a[contains(@class, "linkExcluir")]')
-                    link_para_clicar.click()
-                    break
-        except Exception as e:
-            print(f"- [except][remover_ponto_facultativo_carnaval]: {e}")
+    def remover_ponto_facultativo_carnaval(self, driver):
+        self._remover_ponto_facultativo(driver, "CARNAVAL")
 
     def remover_ponto_facultativo_corpus_christi(self, driver):
-
-        try:
-            # Aguarda até que os elementos da tabela estejam visíveis
-            elementos = WebDriverWait(driver, self.delay).until(EC.presence_of_all_elements_located((By.XPATH, '//tr[contains(@class, "rich-table-row")]')))
-
-            # Itera sobre os elementos encontrados para verificar se contêm o texto "CORPUS CHRISTI"
-            for indice, elemento in enumerate(elementos):
-                # Procura pela célula que contém o texto
-                celula_texto = elemento.find_element(By.XPATH, './td[contains(@class, "rich-table-cell")][2]')  # Índice [2] refere-se à segunda célula <td>
-                # print(f"{indice}) - {celula_texto.text}")
-                if celula_texto.text == "CORPUS CHRISTI":
-                    # print(f"- [LOCALIZADO]: {indice}) - {celula_texto.text}")
-                    # Encontra o link para clicar baseado no id do primeiro elemento <td>
-                    link_para_clicar = elemento.find_element(By.XPATH, f'./td[@id="formulario:listagemPontosFacultativos:{indice}:j_id578"]/a[contains(@class, "linkExcluir")]')
-                    link_para_clicar.click()
-                    break
-        except Exception as e:
-            print(f"- [except][remover_ponto_facultativo_corpus_christi]: {e}")
+        self._remover_ponto_facultativo(driver, "CORPUS CHRISTI")
 
     def remover_ponto_facultativo_sexta_santa(self, driver):
-
-        try:
-            # Aguarda até que os elementos da tabela estejam visíveis
-            elementos = WebDriverWait(driver, self.delay).until(EC.presence_of_all_elements_located((By.XPATH, '//tr[contains(@class, "rich-table-row")]')))
-
-            # Itera sobre os elementos encontrados para verificar se contêm o texto "CORPUS CHRISTI"
-            for indice, elemento in enumerate(elementos):
-                # Procura pela célula que contém o texto
-                celula_texto = elemento.find_element(By.XPATH, './td[contains(@class, "rich-table-cell")][2]')  # Índice [2] refere-se à segunda célula <td>
-                # print(f"{indice}) - {celula_texto.text}")
-                if celula_texto.text == "SEXTA-FEIRA SANTA":
-                    # print(f"- [LOCALIZADO]: {indice}) - {celula_texto.text}")
-                    # Encontra o link para clicar baseado no id do primeiro elemento <td>
-                    link_para_clicar = elemento.find_element(By.XPATH, f'./td[@id="formulario:listagemPontosFacultativos:{indice}:j_id578"]/a[contains(@class, "linkExcluir")]')
-                    link_para_clicar.click()
-                    break
-        except Exception as e:
-            print(f"- [except][remover_ponto_facultativo_sexta_santa]: {e}")
+        self._remover_ponto_facultativo(driver, "SEXTA-FEIRA SANTA")
 
     def ler_pontos_facultativos(self):
         """v3.41: aba PJE-DIV (B3 a D3). Planilha do SAP, sem PJE-DIV: chaves ponto_facultutativo_* da PJE-BD (grafia da v3.41)."""
