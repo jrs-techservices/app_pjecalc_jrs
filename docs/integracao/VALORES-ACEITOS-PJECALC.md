@@ -197,6 +197,7 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `dados-do-calculo.carga_horaria` | número (ou texto com número: `"220h"`) | sem número: recusado |
 | `dados-do-calculo.sabado_dia_util` | `true`/`false` | |
 | `dados-do-calculo.regime` (ou `regime_trabalho`) | lista do §3 | |
+| `dados-do-calculo.reclamante_pis` | texto com 11 dígitos (`"120.56551.23-5"`) | dígito verificador conferido; inválido: recusado. Marca a opção PIS e grava o número |
 | `dados-do-calculo.uf` · `municipio` | sigla · nome na lista do PJe-Calc para a UF | município fora da lista: recusado |
 | demais campos de `dados-do-calculo` | tabela da seção acima | |
 | `fgts.fgts_destino` | texto com "Pagar" ou "Recolher" | outro texto: recusado |
@@ -252,6 +253,19 @@ Competências `MM/AAAA`, fim ≥ início, sem sobreposição, dentro do contrato
 vale com qualquer alíquota; `aliquotasPorPeriodo` só com `Por Período`, e é obrigatória nela (`empresa` e `sat` obrigatórios,
 `terceiros` opcional). Período que o PJe-Calc recusar ao incluir vira pendência na execução. Com planilha que marca
 agroindústria/desoneração/filantrópica (ou Simples), a planilha prevalece.
+
+### `parametrosDoCalculo`: exceções da carga horária e do sábado (Dados do Cálculo › Parâmetros)
+
+```json
+"parametrosDoCalculo": {
+  "excecoesCargaHoraria": [{ "inicio": "2024-01-01", "fim": "2024-06-30", "valor": 180 }],
+  "excecoesSabado":       [{ "inicio": "2024-03-01", "fim": "2024-05-31" }]
+}
+```
+
+Datas `AAAA-MM-DD`, fim ≥ início, dentro do período do cálculo (início/fim do cálculo, ou admissão/demissão), sem
+sobreposição dentro de cada lista; `valor` = carga horária mensal (> 0). Fora disso → `400`. Cada linha entra pelo
+"Adicionar Base" da tela; linha que o PJe-Calc recusar vira pendência na execução.
 
 ### `advogados`: advogados de cada parte (Dados do Cálculo)
 

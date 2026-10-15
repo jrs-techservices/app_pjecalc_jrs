@@ -440,6 +440,78 @@ def cnpj_valido(digitos):
     return True
 
 
+def pis_valido(digitos):
+    if len(digitos) != 11 or len(set(digitos)) == 1:
+        return False
+    soma = sum(int(d) * p for d, p in zip(digitos[:10], (3, 2, 9, 8, 7, 6, 5, 4, 3, 2)))
+    resto = 11 - soma % 11
+    return int(digitos[10]) == (0 if resto in (10, 11) else resto)
+
+
+def _parametros_do_calculo(r):
+    """Bloco `parametrosDoCalculo` (raiz): exceções da carga horária e do sábado, na aba Parâmetros do Cálculo.
+
+    Vão como texto .json [[início, fim(, valor)], …] em excecoes_carga_horaria / excecoes_sabado. Períodos dentro do
+    cálculo (início/fim do cálculo, ou admissão/demissão), fim ≥ início, sem sobreposição dentro de cada lista.
+    """
+    bloco = r.dados.get("parametrosDoCalculo")
+    if bloco is None:
+        return
+    if not isinstance(bloco, dict):
+        r.erro("parametrosDoCalculo", bloco, "deve ser um objeto { excecoesCargaHoraria, excecoesSabado }")
+        return
+    inicio = r.valores.get("inicio_calculo") or r.valores.get("data_admissao")
+    fim = r.valores.get("termino_calculo") or r.valores.get("data_rescisao")
+    for nome, chave, com_valor in (("excecoesCargaHoraria", "excecoes_carga_horaria", True),
+                                   ("excecoesSabado", "excecoes_sabado", False)):
+        caminho = f"parametrosDoCalculo.{nome}"
+        lista = bloco.get(nome)
+        if lista in (None, []):
+            continue
+        if not isinstance(lista, list) or not all(isinstance(i, dict) for i in lista):
+            r.erro(caminho, lista, "deve ser uma lista de { inicio, fim" + (", valor }" if com_valor else " }"))
+            continue
+        linhas, erros_antes = [], len(r.erros)
+        for n, item in enumerate(lista, start=1):
+            onde = f"{caminho}[{n}]"
+            extras = set(item) - {"inicio", "fim"} - ({"valor"} if com_valor else set())
+            if extras:
+                r.erro(onde, item, f"campo(s) não reconhecido(s): {', '.join(sorted(extras))}")
+                continue
+            a, b = r.data(f"{onde}.inicio", item.get("inicio")), r.data(f"{onde}.fim", item.get("fim"))
+            if a is None or b is None:
+                continue
+            if b < a:
+                r.erro(onde, item, "fim anterior ao início")
+                continue
+            if isinstance(inicio, int) and isinstance(fim, int) and not (inicio <= a and b <= fim):
+                r.erro(onde, item, f"fora do período do cálculo ({ORIGEM_EXCEL + timedelta(days=inicio):%d/%m/%Y} a "
+                                   f"{ORIGEM_EXCEL + timedelta(days=fim):%d/%m/%Y})")
+                continue
+            linha = [a, b]
+            if com_valor:
+                valor = numero_da_planilha(item.get("valor"))
+                if valor is None or not 0 < valor <= 744:
+                    r.erro(f"{onde}.valor", item.get("valor"), "carga horária mensal deve ser número maior que 0 (ex.: 180)")
+                    continue
+                linha.append(float(valor))
+            linhas.append(linha)
+        ordenadas = sorted(linhas)
+        for anterior, seguinte in zip(ordenadas, ordenadas[1:]):
+            if seguinte[0] <= anterior[1]:
+                r.erro(caminho, None, "períodos sobrepostos: " + " e ".join(
+                    f"{ORIGEM_EXCEL + timedelta(days=p[0]):%d/%m/%Y}–{ORIGEM_EXCEL + timedelta(days=p[1]):%d/%m/%Y}" for p in (anterior, seguinte)))
+        if len(r.erros) != erros_antes:
+            continue
+        r.valores[chave] = json.dumps([[f"{ORIGEM_EXCEL + timedelta(days=p[0]):%d/%m/%Y}", f"{ORIGEM_EXCEL + timedelta(days=p[1]):%d/%m/%Y}"] + p[2:]
+                                       for p in ordenadas])
+        for folha in _folhas({nome: lista}, "parametrosDoCalculo"):
+            r.usados.add(folha)
+    for chave in bloco:
+        if chave not in ("excecoesCargaHoraria", "excecoesSabado"):
+            r.ignorar(f"parametrosDoCalculo.{chave}", "campo não reconhecido")
+
+
 def _advogados(r):
     """Bloco `advogados`: { reclamante: [...], reclamado: [...] } → família por parte, lançada em Dados do Cálculo."""
     from servico.verbas_pedido import normalizar_descricao
@@ -1038,6 +1110,13 @@ def _telas(r):
     for campo, chave in (("reclamante_cpf", "doc_parte1"), ("reclamado_cnpj", "doc_parte2"), ("reclamado_cpf", "doc_parte2")):
         if dados.get(campo):
             r.usar(f"{base}.{campo}", chave, documento_da_planilha(dados[campo]))
+    if dados.get("reclamante_pis"):
+        digitos = re.sub(r"\D", "", str(dados["reclamante_pis"]))
+        if pis_valido(digitos):
+            # a tela usa a máscara 000.00000.00-0
+            r.usar(f"{base}.reclamante_pis", "pis_parte1", f"{digitos[:3]}.{digitos[3:8]}.{digitos[8:10]}-{digitos[10]}")
+        else:
+            r.erro(f"{base}.reclamante_pis", dados["reclamante_pis"], "PIS inválido (11 dígitos com dígito verificador)")
     if dados.get("numero_processo"):
         if PADRAO_CNJ.match(str(dados["numero_processo"])):
             r.usar(f"{base}.numero_processo", "numero_processo", str(dados["numero_processo"]))
@@ -1287,6 +1366,7 @@ def interpretar(caminho):
     _honorarios(r)
     _multas(r)
     _telas(r)
+    _parametros_do_calculo(r)
     _advogados(r)
     _arquivos(r, caminho)
     if "cont_social_aliquota_empregador" in r.valores:
@@ -1295,7 +1375,7 @@ def interpretar(caminho):
             r.valores.setdefault(gatilho, "<nao_preenchido>")
     from servico.verbas_pedido import interpretar_verbas
     interpretar_verbas(r)
-    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial")}):
+    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo")}):
         if folha and folha not in META and folha not in r.usados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r

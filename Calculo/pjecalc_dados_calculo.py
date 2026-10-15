@@ -1,5 +1,6 @@
 from Tools.pendencias import de_relatorio, registrar
 import os
+import json
 import gc
 import re
 import xlrd
@@ -793,6 +794,70 @@ class DadosCalculo:
             return True
         registrar("Dados do Cálculo", f"advogado '{nome}' ({sufixo.lower()}) não entrou na lista do PJe-Calc")
         return False
+
+    def _valor_do_pedido(self, chave):
+        for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO']):
+            if isinstance(k, str) and k.strip() == chave:
+                return None if valor_vazio(v) else v
+        return None
+
+    def _digitar_campo(self, driver, id_campo, texto):
+        campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo)))
+        campo.click()
+        campo.send_keys(Keys.CONTROL, "a")
+        campo.send_keys(Keys.DELETE)
+        campo.send_keys(texto)
+        campo.send_keys(Keys.TAB)
+        self.objTools.aguardar_carregamento(driver)
+        sleep(0.5)
+        return campo.get_attribute("value")
+
+    def _erros_na_tela(self, driver):
+        return driver.execute_script("""return [...document.querySelectorAll('.erro, .linkErro, .rich-messages-label, .rich-message-label')]
+            .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.textContent.split('//<!')[0].trim())
+            .filter(t => t && !/sucesso/i.test(t));""")
+
+    def lancar_pis_do_pedido(self, driver):
+        """PIS do reclamante (chave pis_parte1, do .json): opção PIS + número."""
+        pis = self._valor_do_pedido('pis_parte1')
+        if pis is None:
+            return
+        opcao = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:reclamanteTipoDocumentoPrevidenciario:0')))
+        if not opcao.is_selected():
+            opcao.click()
+            self.objTools.aguardar_carregamento(driver)
+            sleep(0.5)
+        digitos = re.sub(r"\D", "", str(pis))
+        gravado = self._digitar_campo(driver, 'formulario:reclamanteNumeroDocumentoPrevidenciario', digitos)
+        if re.sub(r"\D", "", gravado or "") != digitos:
+            registrar("Dados do Cálculo", f"PIS do reclamante não ficou como pedido ({pis}); a tela mostra '{gravado}'", origem="automacao")
+        else:
+            print(f"- [PIS]: {gravado}")
+
+    def lancar_excecoes_do_pedido(self, driver):
+        """Exceções da carga horária e do sábado (chaves excecoes_carga_horaria / excecoes_sabado, do .json)."""
+        listas = (("excecoes_carga_horaria", "carga horária", "formulario:incluirExcecaoCH",
+                   ("formulario:dataInicioExcecaoInputDate", "formulario:dataTerminoExcecaoInputDate", "formulario:valorCargaHoraria")),
+                  ("excecoes_sabado", "sábado", "formulario:incluirExcecaoSab",
+                   ("formulario:dataInicioExcecaoSabadoInputDate", "formulario:dataTerminoExcecaoSabadoInputDate")))
+        for chave, rotulo, botao, campos in listas:
+            texto = self._valor_do_pedido(chave)
+            if texto is None:
+                continue
+            for linha in json.loads(texto):
+                valores = [str(linha[0]), str(linha[1])]
+                if len(campos) == 3:
+                    valores.append(f"{float(linha[2]):.2f}".replace(".", ","))
+                for id_campo, valor in zip(campos, valores):
+                    self._digitar_campo(driver, id_campo, valor)
+                WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, botao))).click()
+                self.objTools.aguardar_carregamento(driver)
+                sleep(1)
+                erros = self._erros_na_tela(driver)
+                if erros:
+                    registrar("Dados do Cálculo", f"exceção de {rotulo} {' a '.join(valores[:2])} não incluída: {' | '.join(erros)}")
+                else:
+                    print(f"- [Exceção {rotulo}]: {' | '.join(valores)}")
 
     def lancar_advogados_do_pedido(self, driver, parte):
         """Bloco `advogados` do .json (chaves advogados_<parte>_qtd e advogado_<parte>_<n>_*). False se o pedido não os traz."""
@@ -2763,6 +2828,7 @@ class DadosCalculo:
 
         self.get_numeroDocReclamante_and_digitar(driver)
         sleep(self.delayDefault)
+        self.lancar_pis_do_pedido(driver)
 
         if not self.lancar_advogados_do_pedido(driver, "reclamante"):
             self.get_nomeAdvogadoReclamante_and_digitar(driver)
@@ -2847,6 +2913,7 @@ class DadosCalculo:
         self.sabadoUtil(driver)
         # Tempo de controle
         sleep(self.delayG)
+        self.lancar_excecoes_do_pedido(driver)
         # Somente para versão v.34 da planilha base
         self.definir_ponto_facultativo(driver)
         # Tempo de controle
