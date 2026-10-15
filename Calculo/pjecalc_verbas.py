@@ -147,6 +147,39 @@ class VerbasModel:
         time.sleep(0.5)
 
 
+    def _erros_do_formulario(self, driver):
+        return driver.execute_script("""return [...document.querySelectorAll('.linkErro, .rich-message-label, .rich-messages-label, .erro')]
+            .map(e => e.textContent.split('//<!')[0].trim()).filter(t => t && !/sucesso|gerar novamente/i.test(t));""")
+
+    def salvar_parametros(self, driver):
+        """Salva os parâmetros da verba-modelo e confere que voltou à lista (onde fica o Regerar).
+
+        Às vezes (visto no modo interativo) o PJe-Calc recusa o mesmo formulário que salva na tentativa seguinte, com
+        "Existem erros no formulário" e nenhum campo marcado: refaz os campos e salva de novo, uma vez. Persistindo,
+        interrompe com a mensagem do PJe-Calc (antes o Regerar esgotava a espera e o erro chegava vazio).
+        """
+        from Tools.pendencias import interromper
+        for tentativa in (1, 2):
+            self.salvar_operacao(driver)
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(self.delayG)
+            try:
+                WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, "formulario:regerarOcorrencias")))
+                return
+            except TimeoutException:
+                erros = self._erros_do_formulario(driver)
+            print(f"- [Verba-modelo]: o PJe-Calc não salvou (tentativa {tentativa}): {erros}")
+            if tentativa == 1:
+                self.objTools.aguardar_carregamento(driver)
+                time.sleep(3)
+                self.definir_compor_principal(driver)
+                self.objTools.aguardar_carregamento(driver)
+                time.sleep(self.delayG)
+                self.definir_valor_devido(driver)
+                time.sleep(self.delayG)
+        interromper("Verbas", f"a verba-modelo '{self.NOME}' não foi salva: {' | '.join(erros) or 'sem mensagem do PJe-Calc'}")
+        raise RuntimeError(f"Verbas: a verba-modelo não foi salva: {' | '.join(erros)}")
+
     def regerar(self, driver):
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, "formulario:regerarOcorrencias"))).click()
 
@@ -234,11 +267,7 @@ class VerbasModel:
         self.definir_valor_devido(driver)
         # Tempo de controle
         time.sleep(self.delayG)
-        self.salvar_operacao(driver)
-        
-        self.objTools.aguardar_carregamento(driver)
-        # Tempo de controle
-        time.sleep(self.delayG)
+        self.salvar_parametros(driver)
         self.regerar(driver)
         # Tempo de controle
         time.sleep(0.5)
