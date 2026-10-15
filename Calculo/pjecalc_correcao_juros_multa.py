@@ -326,6 +326,24 @@ class Correcao(DadosCalculo):
                 # indice = indice + 1
                 # continue
 
+    def aplicar_juros_pre_judicial(self, driver):
+        """"Aplicar Juros na Fase Pré-Judicial" pela chave aplicar_juros_fase_pre_judicial.
+
+        O laço de juros acima só mexe na caixa quando a planilha traz "outra tabela de juros"; o .json não traz, e a
+        caixa ficava no padrão do PJe-Calc (marcada). Aqui ela fica como pedido, com ou sem outra tabela (idempotente).
+        """
+        valores = [v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str) and k.strip() == 'aplicar_juros_fase_pre_judicial']
+        marcar = booleano_da_planilha(valores[0]) if valores else None
+        if marcar is None:
+            return
+        caixa = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:aplicarJurosFasePreJudicial')))
+        if caixa.is_selected() != marcar:
+            caixa.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+        print(f'- Aplicar Juros na Fase Pré-Judicial: {"marcado" if marcar else "desmarcado"}')
+
     def acessar_aba_dados_especificos(self, driver):
         WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tabDadosEspecificos_lbl'))).click()
 
@@ -512,6 +530,7 @@ class Correcao(DadosCalculo):
         self.preencher_dados_gerais_juros_de_mora(driver)
         # Tempo de controle
         time.sleep(self.delayG)
+        self.aplicar_juros_pre_judicial(driver)
         # Salvar
         self.salvar(driver)
         # Aguardar

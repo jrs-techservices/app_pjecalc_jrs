@@ -1176,6 +1176,12 @@ def _telas(r):
         if indice is None:
             r.erro("telas.correcao-juros-multa.cj_correcao", valor, "índice não reconhecido", aceitos)
         r.usar("telas.correcao-juros-multa.cj_correcao", "indice_trabalhista", indice)
+    if "cj_juros_pre_judicial" in correcao:
+        if isinstance(correcao["cj_juros_pre_judicial"], bool):
+            r.usar("telas.correcao-juros-multa.cj_juros_pre_judicial", "aplicar_juros_fase_pre_judicial",
+                   _texto(correcao["cj_juros_pre_judicial"]))
+        else:
+            r.erro("telas.correcao-juros-multa.cj_juros_pre_judicial", correcao["cj_juros_pre_judicial"], "use true ou false")
 
     for tela, campos in telas.items():
         for campo in (campos or {}):

@@ -204,6 +204,7 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `custas-judiciais.custas_reclamado` | "Não se Aplica" · "Calculada 2%" | "Informada" aqui é recusado: use o bloco `custas` |
 | `contribuicao-social.cs_atividade_economica` | texto da CNAE | igual a `atividadeEconomica` |
 | `correcao-juros-multa.cj_correcao` | índice da lista do §3 (ou "texto (índice)") | fora da lista: recusado |
+| `correcao-juros-multa.cj_juros_pre_judicial` | `true`/`false` | "Aplicar Juros na Fase Pré-Judicial"; sem o campo, fica o padrão da tela (marcado) |
 
 **Não lido ainda** (vai para `ignorados`, o pedido segue): o bloco `verbas` ("próxima fase"), o `cartao-de-ponto` de `arquivos`; as telas
 `salario-familia`, `seguro-desemprego`, `previdencia-privada`, `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`
