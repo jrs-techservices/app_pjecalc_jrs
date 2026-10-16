@@ -1,4 +1,5 @@
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from datetime import datetime, date, timedelta
@@ -59,17 +60,22 @@ class Liquidar:
     def acessar_liquidar(self, driver):
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.CLASS_NAME, "menuImageLiquidar"))).click()
 
+    def _do_pedido(self, chave):
+        if not self.source:
+            return None
+        from Calculo.leitura_planilha import ler_pje_bd, valor_vazio
+        planilha = ler_pje_bd(self.source)
+        valores = [v for k, v in zip(planilha['IDENTIFICADOR'], planilha['INFORMACAO']) if isinstance(k, str) and k.strip() == chave]
+        return None if not valores or valor_vazio(valores[0]) else valores[0]
+
     def acumular_indice(self, driver):
         """Índices acumulados: o do .json (cj_indices_acumulados) ou, sem ele, a opção de sempre (mensais no mês
         subsequente, anuais e rescisórias no mês do vencimento)."""
         opcao = 2
         if self.source:
-            from Calculo.leitura_planilha import ler_pje_bd
-            planilha = ler_pje_bd(self.source)
-            pedido = [v for k, v in zip(planilha['IDENTIFICADOR'], planilha['INFORMACAO'])
-                      if isinstance(k, str) and k.strip() == 'cj_indices_acumulados']
-            if pedido and str(pedido[0]).strip() in OPCOES_INDICES_ACUMULADOS:
-                opcao = OPCOES_INDICES_ACUMULADOS[str(pedido[0]).strip()]
+            pedido = self._do_pedido('cj_indices_acumulados')
+            if pedido and str(pedido).strip() in OPCOES_INDICES_ACUMULADOS:
+                opcao = OPCOES_INDICES_ACUMULADOS[str(pedido).strip()]
         print(f"- [Liquidar] índices acumulados: opção {opcao}")
         WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f"formulario:indicesAcumulados:{opcao}"))).click()
 
@@ -109,10 +115,19 @@ class Liquidar:
 
             return data_liquidacao
 
-        data = gerar_data_liquidacao()
+        data = self._do_pedido('data_liquidacao')
+        if data:
+            data = data.strftime("%d/%m/%Y") if hasattr(data, "strftime") else str(data).strip()
+            print(f"- [Liquidar] data de liquidação do pedido: {data}")
+        else:
+            data = gerar_data_liquidacao()
 
         campo_data = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.NAME, 'formulario:dataDeLiquidacaoInputDate')))
+        campo_data.click()
+        campo_data.send_keys(Keys.CONTROL, "a")
+        campo_data.send_keys(Keys.DELETE)
         campo_data.send_keys(data)
+        campo_data.send_keys(Keys.TAB)
 
     def click_liquidar(self, driver):
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:liquidar'))).click()

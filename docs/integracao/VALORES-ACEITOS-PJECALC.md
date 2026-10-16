@@ -298,6 +298,13 @@ Com `ir_apurar = false` a tela desabilita todas as outras: mandá-las junto → 
 (Apurar e as quatro deduções marcadas; o resto desmarcado). Sem nenhuma chave `ir_*`, a tela não é tocada. As chaves do
 formato antigo (`ir_regime`, `ir_exclusiva`, `ir_deducoes`, em texto) vão para `ignorados`.
 
+### `dataLiquidacao`: data da liquidação (tela Liquidar)
+
+`"dataLiquidacao": "AAAA-MM-DD"` na raiz. Presente: o robô liquida nessa data (as duas liquidações). Ausente: a regra de sempre —
+dia de hoje ≥ 16 → último dia do mês anterior; antes do dia 16 → último dia de dois meses atrás. Depois do último dia do mês corrente
+→ `400`. Uso: retificação, esclarecimento, adequação e complementação mantêm a data do cálculo originário (a atualização para data
+mais recente é outra função do PJe-Calc). No .PJC: `dataDeLiquidacao`.
+
 ### `parametrosDoCalculo`: exceções da carga horária e do sábado (Dados do Cálculo › Parâmetros)
 
 ```json

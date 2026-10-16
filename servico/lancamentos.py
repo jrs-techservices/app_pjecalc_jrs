@@ -465,6 +465,23 @@ def pis_valido(digitos):
     return int(digitos[10]) == (0 if resto in (10, 11) else resto)
 
 
+def _data_liquidacao(r):
+    """dataLiquidacao (raiz): o robô liquida nessa data em vez da regra do dia (padrão 44: retificação, esclarecimento etc.
+    mantêm a data do cálculo originário). Depois do último dia do mês corrente → 400."""
+    if r.dados.get("dataLiquidacao") in (None, ""):
+        return
+    serial = r.data("dataLiquidacao", r.dados["dataLiquidacao"])
+    if serial is None:
+        return
+    data = ORIGEM_EXCEL + timedelta(days=serial)
+    hoje = datetime.now()
+    fim_do_mes = (datetime(hoje.year + hoje.month // 12, hoje.month % 12 + 1, 1) - timedelta(days=1))
+    if data.date() > fim_do_mes.date():
+        r.erro("dataLiquidacao", r.dados["dataLiquidacao"], f"depois do último dia do mês corrente ({fim_do_mes:%d/%m/%Y})")
+        return
+    r.usar("dataLiquidacao", "data_liquidacao", f"{data:%d/%m/%Y}")
+
+
 def _parametros_do_calculo(r):
     """Bloco `parametrosDoCalculo` (raiz): exceções da carga horária e do sábado, na aba Parâmetros do Cálculo.
 
@@ -1559,6 +1576,7 @@ def interpretar(caminho):
     _multas(r)
     _telas(r)
     _parametros_do_calculo(r)
+    _data_liquidacao(r)
     _advogados(r)
     _arquivos(r, caminho)
     if "cont_social_aliquota_empregador" in r.valores:
