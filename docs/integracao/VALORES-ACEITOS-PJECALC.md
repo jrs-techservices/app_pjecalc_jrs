@@ -298,6 +298,21 @@ Com `ir_apurar = false` a tela desabilita todas as outras: mandá-las junto → 
 (Apurar e as quatro deduções marcadas; o resto desmarcado). Sem nenhuma chave `ir_*`, a tela não é tocada. As chaves do
 formato antigo (`ir_regime`, `ir_exclusiva`, `ir_deducoes`, em texto) vão para `ignorados`.
 
+### `honorarios[]`: documento e IR do credor, juros e correção do INFORMADO (implementado em 16/10/2026)
+
+| campo | valores | condição |
+|---|---|---|
+| `tipoDocumentoFiscalCredor` · `numeroDocumentoFiscalCredor` | `CPF` · `CNPJ` · `CEI` · número (com ou sem máscara) | vêm juntos; CPF/CNPJ com dígito conferido |
+| `apurarIRRF` | `true`/`false` | `true` exige o documento do credor |
+| `tipoDeImpostoDeRenda` | `PESSOA_FISICA` · `PESSOA_JURIDICA` | só com `apurarIRRF = true` |
+| `aplicarJuros` · `dataJurosAPartirDe` | `true`/`false` · `AAAA-MM-DD` | só INFORMADO; a data é obrigatória com juros e proibida sem |
+| `apurarIRPFSobreJuros` | `true`/`false` | só INFORMADO, com `aplicarJuros` e `apurarIRRF` (a tela só habilita assim) |
+| `tipoDeIndiceDeCorrecao` · `outroIndiceDeCorrecao` | `UTILIZAR_INDICE_TRABALHISTA` · `UTILIZAR_OUTRO_INDICE` · texto da lista `indiceTrabalhista` | só INFORMADO; o outro índice é obrigatório com `UTILIZAR_OUTRO_INDICE` |
+
+No CALCULADO, juros e correção vão para ignorados (a tela não os tem). No .PJC: `Honorario/{tipoDocumentoFiscalCredor,
+numeroDocumentoFiscalCredor, apurarIRRF, tipoImpostoRenda, aplicarJuros, dataApartirDeAplicarJuros, apurarIRPFSobreJuros,
+tipoDeIndiceDeCorrecao, outroIndiceDeCorrecao}` (ex.: IPCA-E → `IPCAE`).
+
 ### `custas`: a tela Custas Judiciais inteira (implementado em 16/10/2026)
 
 Além de `tipoDeCustasDeConhecimentoDoReclamado` (+ data/valor se INFORMADA) e `custasPagasDoReclamado[]`, que já existiam:

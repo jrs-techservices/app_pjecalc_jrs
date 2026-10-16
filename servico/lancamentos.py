@@ -365,10 +365,76 @@ def _custas(r):
 
 # campos que a tela do honorário mostra em cada tipo de valor (o resto do item não tem onde entrar)
 CAMPOS_HONORARIO = {
-    "INFORMADO": {"descricao", "tipoHonorario", "tipoDeDevedor", "tipoCobrancaReclamante", "nomeCredor", "tipoValor", "dataVencimento", "valor"},
+    "INFORMADO": {"descricao", "tipoHonorario", "tipoDeDevedor", "tipoCobrancaReclamante", "nomeCredor", "tipoValor", "dataVencimento", "valor",
+                  "tipoDocumentoFiscalCredor", "numeroDocumentoFiscalCredor", "apurarIRRF", "tipoDeImpostoDeRenda", "apurarIRPFSobreJuros",
+                  "aplicarJuros", "dataJurosAPartirDe", "tipoDeIndiceDeCorrecao", "outroIndiceDeCorrecao"},
     "CALCULADO": {"descricao", "tipoHonorario", "tipoDeDevedor", "tipoCobrancaReclamante", "nomeCredor", "tipoValor", "aliquota",
-                  "baseParaApuracao", "tipoDeIndiceDeCorrecao"},
+                  "baseParaApuracao", "tipoDeIndiceDeCorrecao", "tipoDocumentoFiscalCredor", "numeroDocumentoFiscalCredor", "apurarIRRF",
+                  "tipoDeImpostoDeRenda"},
 }
+
+
+def _extras_do_honorario(r, base, item, tipo_valor):
+    """Documento e IR do credor (os dois tipos) e, no INFORMADO, juros e correção por outro índice. Devolve o dicionário
+    que a tela aplica (só o que veio) ou None se algo foi recusado. Campo fora da condição em que a tela o mostra → 400."""
+    extras, erros_antes = {}, len(r.erros)
+
+    def booleano(campo):
+        if campo not in item:
+            return None
+        if not isinstance(item[campo], bool):
+            r.erro(f"{base}.{campo}", item[campo], "use true ou false")
+            return None
+        return item[campo]
+
+    tipo_doc = item.get("tipoDocumentoFiscalCredor")
+    numero = re.sub(r"\D", "", str(item.get("numeroDocumentoFiscalCredor") or ""))
+    if tipo_doc not in (None, "") or numero:
+        tamanhos = {"CPF": 11, "CNPJ": 14, "CEI": 12}
+        if tipo_doc not in tamanhos:
+            r.erro(f"{base}.tipoDocumentoFiscalCredor", tipo_doc, "valor não reconhecido (vem junto com o número)", list(tamanhos))
+        elif len(numero) != tamanhos[tipo_doc] or (tipo_doc == "CPF" and not cpf_valido(numero)) or (tipo_doc == "CNPJ" and not cnpj_valido(numero)):
+            r.erro(f"{base}.numeroDocumentoFiscalCredor", item.get("numeroDocumentoFiscalCredor"), f"{tipo_doc} inválido")
+        else:
+            extras["doc_tipo"], extras["doc_numero"] = tipo_doc, numero
+    irrf = booleano("apurarIRRF")
+    if irrf is not None:
+        if irrf and "doc_numero" not in extras:
+            r.erro(f"{base}.apurarIRRF", True, "apurar IR exige o documento do credor (tipoDocumentoFiscalCredor + numeroDocumentoFiscalCredor)")
+        extras["irrf"] = irrf
+    if item.get("tipoDeImpostoDeRenda") not in (None, ""):
+        if not irrf:
+            r.erro(f"{base}.tipoDeImpostoDeRenda", item["tipoDeImpostoDeRenda"], "só com apurarIRRF = true")
+        elif item["tipoDeImpostoDeRenda"] not in ("PESSOA_FISICA", "PESSOA_JURIDICA"):
+            r.erro(f"{base}.tipoDeImpostoDeRenda", item["tipoDeImpostoDeRenda"], "valor não reconhecido", ["PESSOA_FISICA", "PESSOA_JURIDICA"])
+        else:
+            extras["ir_tipo"] = item["tipoDeImpostoDeRenda"]
+    if tipo_valor == "INFORMADO":
+        juros = booleano("aplicarJuros")
+        if juros is not None:
+            extras["juros"] = juros
+            if juros:
+                desde = r.data(f"{base}.dataJurosAPartirDe", item.get("dataJurosAPartirDe"))
+                if desde is not None:
+                    extras["juros_desde"] = f"{ORIGEM_EXCEL + timedelta(days=desde):%d/%m/%Y}"
+        if "dataJurosAPartirDe" in item and not juros:
+            r.erro(f"{base}.dataJurosAPartirDe", item["dataJurosAPartirDe"], "só com aplicarJuros = true")
+        ir_juros = booleano("apurarIRPFSobreJuros")
+        if ir_juros is not None:
+            if ir_juros and not (juros and irrf):
+                r.erro(f"{base}.apurarIRPFSobreJuros", True, "só com aplicarJuros = true e apurarIRRF = true (a tela só habilita assim)")
+            extras["ir_juros"] = ir_juros
+        indice = item.get("tipoDeIndiceDeCorrecao")
+        if indice not in (None, "", "UTILIZAR_INDICE_TRABALHISTA"):
+            outro = item.get("outroIndiceDeCorrecao")
+            aceitos = CATALOGO["telas"]["correcao-juros-multa"]["listas"]["indiceTrabalhista"]
+            if indice != "UTILIZAR_OUTRO_INDICE":
+                r.erro(f"{base}.tipoDeIndiceDeCorrecao", indice, "valor não reconhecido", ["UTILIZAR_INDICE_TRABALHISTA", "UTILIZAR_OUTRO_INDICE"])
+            elif outro not in aceitos:
+                r.erro(f"{base}.outroIndiceDeCorrecao", outro, "obrigatório com UTILIZAR_OUTRO_INDICE; texto da lista indiceTrabalhista", aceitos)
+            else:
+                extras["indice_outro"] = outro
+    return extras if len(r.erros) == erros_antes else None
 
 # Honorário CALCULADO vai pela família 'contratuais' da tela: ela pula tipo com '-' (os periciais) e aplica .title()
 # ao tipo (o que estraga 'Honorários de Sucumbência'); por isso só estes quatro.
@@ -407,13 +473,16 @@ def _honorarios(r):
         devedor = r.enumeracao(f"{base}.tipoDeDevedor", item.get("tipoDeDevedor"), DEVEDOR)
         cobranca = r.enumeracao(f"{base}.tipoCobrancaReclamante", item.get("tipoCobrancaReclamante", "COBRAR"), COBRANCA)
         credor = str(item.get("nomeCredor") or "")
+        extras = _extras_do_honorario(r, base, item, tipo_valor)
+        if extras is None:
+            continue
         if tipo_valor == "INFORMADO":
             vencimento = r.data(f"{base}.dataVencimento", item.get("dataVencimento"))
             valor = numero_da_planilha(item.get("valor"))
             if valor is None:
                 r.erro(f"{base}.valor", item.get("valor"), "valor obrigatório em honorário INFORMADO")
             if None not in (tipo, devedor, cobranca, vencimento, valor):
-                informados.append((tipo, descricao, devedor, cobranca, vencimento, valor, credor))
+                informados.append((tipo, descricao, devedor, cobranca, vencimento, valor, credor, extras))
                 _usar_campos_do_honorario(r, n, item, "INFORMADO")
             continue
         if tipo and tipo not in TIPOS_HONORARIO_CALCULADO:
@@ -428,17 +497,21 @@ def _honorarios(r):
         base_apuracao = _opcao_da_tela(r, f"{base}.baseParaApuracao", item.get("baseParaApuracao"),
                                        CATALOGO["telas"]["honorarios"]["listas"]["baseParaApuracao"])
         if None not in (tipo, devedor, cobranca, aliquota, base_apuracao):
-            calculados.append((tipo, descricao, devedor, "DEDUZIR" if cobranca == "DESCONTAR" else "COBRAR", aliquota, base_apuracao, credor))
+            calculados.append((tipo, descricao, devedor, "DEDUZIR" if cobranca == "DESCONTAR" else "COBRAR", aliquota, base_apuracao, credor, extras))
             _usar_campos_do_honorario(r, n, item, "CALCULADO")
 
     familia = [("qtd_honorarios_periciais", len(informados))]
-    for n, (tipo, descricao, devedor, cobranca, vencimento, valor, credor) in enumerate(informados, start=1):
+    for n, (tipo, descricao, devedor, cobranca, vencimento, valor, credor, extras) in enumerate(informados, start=1):
+        if extras:
+            familia.append((f"honorarios_periciais_extras_{n}", json.dumps(extras, ensure_ascii=False)))
         familia += [(f"honorarios_periciais_tipo_pericia_pje_calc_{n}", tipo), (f"honorarios_periciais_descricao_{n}", descricao),
                     (f"honorarios_periciais_devedor_{n}", devedor), (f"honorarios_periciais_pgto_rcte_{n}", cobranca),
                     (f"honorarios_periciais_data_{n}", vencimento), (f"honorarios_periciais_valor_{n}", valor),
                     (f"honorarios_periciais_nome_credor_{n}", credor), (f"honorarios_periciais_cm_{n}", "<branco>")]
     familia.append(("qtd_honorarios_contratuais", len(calculados)))
-    for n, (tipo, descricao, devedor, participacao, aliquota, base_apuracao, credor) in enumerate(calculados, start=1):
+    for n, (tipo, descricao, devedor, participacao, aliquota, base_apuracao, credor, extras) in enumerate(calculados, start=1):
+        if extras:
+            familia.append((f"honorarios_contratuais_extras_{n}", json.dumps(extras, ensure_ascii=False)))
         familia += [(f"honorarios_contratuais_tipob_{n}", tipo), (f"honorarios_contratuais_descricao_{n}", descricao),
                     (f"honorarios_contratuais_devedor_{n}", devedor), (f"honorarios_contratuais_partic_{n}", participacao),
                     (f"honorarios_contratuais_tipo_{n}", "CALCULADO"), (f"honorarios_contratuais_alíquota_{n}", aliquota),

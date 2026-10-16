@@ -1,4 +1,5 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, registrar
+import json
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
@@ -281,6 +282,7 @@ class Honorarios(DadosCalculo):
                         # Credor
                         campo_credor = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.NAME, 'formulario:nomeCredor')))
                         campo_credor.send_keys(self.honorarios_periciais_nome_credor_1)
+                        self.aplicar_extras_do_pedido(driver, f"honorarios_periciais_extras_{indice}")
 
                         # Salvar
                         self.salvar(driver)
@@ -463,6 +465,7 @@ class Honorarios(DadosCalculo):
                             # campo_credor = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.NAME, 'formulario:nomeCredor')))
                             # campo_credor.send_keys(self.honorarios_periciais_nome_credor_1)
 
+                        self.aplicar_extras_do_pedido(driver, f"honorarios_contratuais_extras_{indice}")
                         # Salvar
                         self.salvar(driver)
                         # Aguardar Processamento
@@ -687,6 +690,58 @@ class Honorarios(DadosCalculo):
                 indice += 1
                 # Quebra de Linha
                 print('\n')
+
+    def aplicar_extras_do_pedido(self, driver, chave):
+        """Campos do .json além dos da planilha (chave honorarios_*_extras_<n>, um dicionário): correção por outro índice e
+        juros (INFORMADO), documento e IR do credor (os dois tipos), na ordem em que a tela os habilita."""
+        valores = [v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str) and k.strip() == chave]
+        if not valores or not isinstance(valores[0], str) or not valores[0].startswith("{"):
+            return
+        extras = json.loads(valores[0])
+
+        def clicar(id_campo):
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo))).click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(0.5)
+
+        def caixa(id_campo, marcar):
+            campo = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, id_campo)))
+            if not campo.is_enabled():
+                if campo.is_selected() != marcar:
+                    registrar("Honorários", f"'{id_campo.split(':')[-1]}' desabilitado na tela; não aplicado", origem="automacao")
+                return
+            if campo.is_selected() != marcar:
+                campo.click()
+                self.objTools.aguardar_carregamento(driver)
+                time.sleep(0.5)
+
+        def digitar(id_campo, texto):
+            campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo)))
+            campo.click()
+            campo.send_keys(Keys.CONTROL, "a")
+            campo.send_keys(Keys.DELETE)
+            campo.send_keys(texto)
+            campo.send_keys(Keys.TAB)
+            time.sleep(0.5)
+
+        if extras.get("indice_outro"):
+            clicar("formulario:tipoDeIndiceDeCorrecao:1")
+            Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, "formulario:outroIndiceDeCorrecao")))).select_by_visible_text(extras["indice_outro"])
+        if "juros" in extras:
+            caixa("formulario:aplicarJuros", extras["juros"])
+            if extras.get("juros_desde"):
+                digitar("formulario:dataJurosAPartirDeInputDate", extras["juros_desde"])
+        if extras.get("doc_tipo"):
+            clicar(f"formulario:tipoDocumentoFiscalCredor:{('CPF', 'CNPJ', 'CEI').index(extras['doc_tipo'])}")
+            digitar("formulario:numeroDocumentoFiscalCredor", extras["doc_numero"])
+        if "irrf" in extras:
+            caixa("formulario:apurarIRRF", extras["irrf"])
+            if extras.get("ir_tipo"):
+                clicar(f"formulario:tipoDeImpostoDeRenda:{0 if extras['ir_tipo'] == 'PESSOA_FISICA' else 1}")
+        if "ir_juros" in extras:
+            caixa("formulario:apurarIRPFSobreJuros", extras["ir_juros"])
+        print(f"- [Honorários] campos do pedido: {', '.join(sorted(extras))}")
 
     def salvar(self, driver):
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:salvar'))).click()
