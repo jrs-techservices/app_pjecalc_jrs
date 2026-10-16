@@ -336,6 +336,27 @@ Além de `tipoDeCustasDeConhecimentoDoReclamado` (+ data/valor se INFORMADA) e `
 
 Ausente = padrão da tela. Códigos = os do .PJC (`CustasJudiciais/*`, `custasPagasDoReclamado|custasPagasDoReclamante/CustaPaga`).
 
+### Correção › Dados Específicos (`telas.correcao-juros-multa`, chaves `cj_*`; implementado em 16/10/2026)
+
+Só chegam quando diferem do padrão da tela (ausente = padrão). Campo fora da condição em que a tela o mostra → `400` (a condição
+usa o pedido ou, sem ele, o padrão da 2.16).
+
+| chave | valores | tela / .PJC | condição |
+|---|---|---|---|
+| `cj_ignorar_taxa_negativa` | bool | `ignorarTaxaNegativa` (Dados Gerais) | |
+| `cj_fgts_indice` | "Utilizar índice trabalhista" · "Utilizar índice JAM" · "Utilizar índice JAM e índice trabalhista" | `indiceDeCorrecaoDoFGTS` | |
+| `cj_pp_juros` · `cj_pp_indice` · `cj_pp_outro_indice` | bool · "Utilizar índice trabalhista"/"Utilizar outro índice" · índice | `…PrevidenciaPrivada` | outro índice só com "Utilizar outro índice" (e obrigatório nele) |
+| `cj_custas_correcao` · `cj_custas_juros` · `cj_custas_indice` · `cj_custas_outro_indice` | idem | `correcaoDasCustas` · `jurosDeCustas` · `…DasCustas` | juros/índice só com a correção |
+| `cj_cs_{dev,pag}_trab_correcao` · `_trab_juros` · `_prev_correcao` · `_prev_juros` | bool | `correcao/juros{Trabalhista,Previdenciaria}DosSalarios{Devidos,Pagos}DoINSS` | juros só com a correção do mesmo tipo |
+| `cj_cs_{dev,pag}_multa` · `_multa_tipo` · `_multa_pagamento` | bool · "Urbana"/"Rural" · "Integral"/"Reduzido" | `aplicarMulta…` · `tipoDeMulta…` · `pagamentoDaMulta…` | multa só com a correção previdenciária; tipo e pagamento só com a multa |
+| `cj_cs_{dev,pag}_forma` | "Mês-a-mês" · "A partir de" | `salario{Devido,Pago}FormaAplicacao` (`MES_A_MES`/`A_PARTIR_DE`) | só com a previdenciária e sem a trabalhista |
+| `cj_cs_{dev,pag}_data` | `AAAA-MM-DD` | `aplicarAteDosSalarios{Devidos,Pagos}DoINSS` | com as duas correções ("aplicar até") ou com forma "A partir de" (obrigatória nela) |
+| `cj_cs_lei11941` (+ `_a_partir`) · `cj_cs_limitar_multa` (+ `_a_partir`) | bool · data | `lei11941`/`apartirDeLei11941` · `lei11941Multa`/`apartirDeLei11941Multa` | devidos: com a correção trabalhista ou forma "A partir de" |
+| `cj_cs_pag_lei11941` (+ `_a_partir`) · `cj_cs_pag_limitar_multa` (+ `_a_partir`) | bool · data | `lei11941Pago`/`apartirDeLei11941Pago` · `lei11941PagoMulta`/`apartirDeLei11941PagoMulta` | pagos: só com `cj_cs_pag_forma` "A partir de" |
+
+Na tela, as datas "A partir de" de devidos e pagos se copiam uma para a outra ao sair do campo; o robô as grava sem esse efeito
+(testado: devidos 01/06/2024 e pagos 15/07/2024 saíram distintos no .PJC).
+
 ### `dataLiquidacao`: data da liquidação (tela Liquidar)
 
 `"dataLiquidacao": "AAAA-MM-DD"` na raiz. Presente: o robô liquida nessa data (as duas liquidações). Ausente: a regra de sempre —

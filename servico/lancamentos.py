@@ -1397,6 +1397,119 @@ def _contribuicao_social_completa(r, cs):
 INDICES_ACUMULADOS = ("MES_SUBSEQUENTE_AO_VENCIMENTO", "MES_DO_VENCIMENTO", "MES_SUBSEQUENTE_E_MES_DO_VENCIMENTO")
 
 
+# Correção › Dados Específicos (e "Ignorar Taxa Negativa" de Dados Gerais): padrões da 2.16 num cálculo novo, usados para
+# avaliar a condição em que a tela mostra cada campo quando o pedido não manda o campo de que ele depende
+PADRAO_DADOS_ESPECIFICOS = {
+    "cj_custas_correcao": True,
+    "cj_cs_dev_trab_correcao": True, "cj_cs_dev_prev_correcao": False, "cj_cs_dev_multa": False, "cj_cs_lei11941": True,
+    "cj_cs_limitar_multa": True,
+    "cj_cs_pag_trab_correcao": False, "cj_cs_pag_prev_correcao": True, "cj_cs_pag_multa": True,
+}
+OPCOES_INDICE_PROPRIO = ("Utilizar índice trabalhista", "Utilizar outro índice")
+OPCOES_FGTS = ("Utilizar índice trabalhista", "Utilizar índice JAM", "Utilizar índice JAM e índice trabalhista")
+OPCOES_FORMA = ("Mês-a-mês", "A partir de")
+
+
+def _dados_especificos(r, cj, base):
+    """Chaves cj_* da aba Dados Específicos (FGTS, Previdência Privada, Custas, Contribuição Social devidos/pagos) e
+    cj_ignorar_taxa_negativa. Vão com o mesmo nome para a planilha; a tela as aplica na ordem em que se habilitam.
+    Campo fora da condição em que a tela o mostra → 400 (a condição usa o pedido ou, sem ele, o padrão da 2.16)."""
+    listas = CATALOGO["telas"]["correcao-juros-multa"]["listas"]
+    efetivo = {}
+
+    def booleano(chave):
+        if chave not in cj:
+            return PADRAO_DADOS_ESPECIFICOS.get(chave)
+        if not isinstance(cj[chave], bool):
+            r.erro(f"{base}.{chave}", cj[chave], "use true ou false")
+            return PADRAO_DADOS_ESPECIFICOS.get(chave)
+        r.usar(f"{base}.{chave}", chave, _texto(cj[chave]))
+        return cj[chave]
+
+    def opcao(chave, opcoes):
+        if cj.get(chave) in (None, ""):
+            return None
+        if cj[chave] not in opcoes:
+            r.erro(f"{base}.{chave}", cj[chave], "valor não reconhecido", list(opcoes))
+            return None
+        r.usar(f"{base}.{chave}", chave, cj[chave])
+        return cj[chave]
+
+    def data(chave):
+        if cj.get(chave) in (None, ""):
+            return None
+        serial = r.data(f"{base}.{chave}", cj[chave])
+        if serial is not None:
+            r.usar(f"{base}.{chave}", chave, f"{ORIGEM_EXCEL + timedelta(days=serial):%d/%m/%Y}")
+        return serial
+
+    def so_com(chave, condicao, motivo):
+        if chave in cj and cj[chave] not in (None, "", False) and not condicao:
+            r.erro(f"{base}.{chave}", cj[chave], motivo)
+            return False
+        return True
+
+    booleano("cj_ignorar_taxa_negativa")
+    opcao("cj_fgts_indice", OPCOES_FGTS)
+    # Previdência Privada e Custas: índice próprio
+    for grupo, condicao in (("pp", True), ("custas", None)):
+        if grupo == "custas":
+            correcao = booleano("cj_custas_correcao")
+            for chave in ("cj_custas_juros", "cj_custas_indice", "cj_custas_outro_indice"):
+                so_com(chave, correcao, "só com cj_custas_correcao = true (a tela desabilita sem a correção)")
+            booleano("cj_custas_juros")
+        else:
+            booleano("cj_pp_juros")
+        indice = opcao(f"cj_{grupo}_indice", OPCOES_INDICE_PROPRIO)
+        outro = cj.get(f"cj_{grupo}_outro_indice")
+        if outro not in (None, ""):
+            if indice != "Utilizar outro índice":
+                r.erro(f"{base}.cj_{grupo}_outro_indice", outro, f"só com cj_{grupo}_indice = \"Utilizar outro índice\"")
+            elif outro not in listas["indiceTrabalhista"]:
+                r.erro(f"{base}.cj_{grupo}_outro_indice", outro, "fora da lista de índices", listas["indiceTrabalhista"])
+            else:
+                r.usar(f"{base}.cj_{grupo}_outro_indice", f"cj_{grupo}_outro_indice", outro)
+        elif indice == "Utilizar outro índice":
+            r.erro(f"{base}.cj_{grupo}_outro_indice", None, f"obrigatório com cj_{grupo}_indice = \"Utilizar outro índice\"")
+    # Contribuição Social: salários devidos (dev) e pagos (pag)
+    for bloco in ("dev", "pag"):
+        p = f"cj_cs_{bloco}_"
+        trab, prev = booleano(p + "trab_correcao"), booleano(p + "prev_correcao")
+        so_com(p + "trab_juros", trab, f"só com {p}trab_correcao = true")
+        booleano(p + "trab_juros")
+        so_com(p + "prev_juros", prev, f"só com {p}prev_correcao = true")
+        booleano(p + "prev_juros")
+        so_com(p + "multa", prev, f"só com {p}prev_correcao = true")
+        multa = booleano(p + "multa")
+        for chave, opcoes in ((p + "multa_tipo", ("Urbana", "Rural")), (p + "multa_pagamento", ("Integral", "Reduzido"))):
+            if so_com(chave, multa and prev, f"só com {p}multa = true"):
+                opcao(chave, opcoes)
+        forma = None
+        if so_com(p + "forma", prev and not trab, f"só com {p}prev_correcao = true e {p}trab_correcao = false"):
+            forma = opcao(p + "forma", OPCOES_FORMA)
+        if so_com(p + "data", (trab and prev) or forma == "A partir de",
+                  f"só com as duas correções ({p}trab_correcao e {p}prev_correcao) ou com {p}forma = \"A partir de\""):
+            data(p + "data")
+        if forma == "A partir de" and cj.get(p + "data") in (None, ""):
+            r.erro(f"{base}.{p}data", None, f"obrigatória com {p}forma = \"A partir de\"")
+        # Lei 11.941: a dos devidos usa as chaves de vocês (cj_cs_lei11941*, cj_cs_limitar_multa*); a dos pagos, cj_cs_pag_lei11941*
+        lei, lei_data, limitar, limitar_data = (("cj_cs_lei11941", "cj_cs_lei11941_a_partir", "cj_cs_limitar_multa", "cj_cs_limitar_multa_a_partir")
+                                                if bloco == "dev" else
+                                                ("cj_cs_pag_lei11941", "cj_cs_pag_lei11941_a_partir", "cj_cs_pag_limitar_multa", "cj_cs_pag_limitar_multa_a_partir"))
+        visivel = (trab or forma == "A partir de") if bloco == "dev" else forma == "A partir de"
+        for chave in (lei, lei_data, limitar, limitar_data):
+            so_com(chave, visivel, "a tela só mostra a Lei 11.941 deste bloco " +
+                   ("com a correção trabalhista ou com a forma \"A partir de\"" if bloco == "dev" else "com cj_cs_pag_forma = \"A partir de\""))
+        if visivel:
+            ativa = booleano(lei)
+            if so_com(lei_data, ativa, f"só com {lei} = true"):
+                data(lei_data)
+            if so_com(limitar, ativa, f"só com {lei} = true"):
+                limita = booleano(limitar)
+                if so_com(limitar_data, limita, f"só com {limitar} = true"):
+                    data(limitar_data)
+
+
 def _correcao_e_juros(r, cj):
     """telas.correcao-juros-multa: tabela de juros, combinações de índices e de juros (várias, para as viradas da
     ADC 58 e da Lei 14.905/2024), base de juros das verbas e índices acumulados (este vai para a tela Liquidar).
@@ -1465,6 +1578,7 @@ def _correcao_e_juros(r, cj):
             r.usar(f"{base}.cj_indices_acumulados", "cj_indices_acumulados", cj["cj_indices_acumulados"])
         else:
             r.erro(f"{base}.cj_indices_acumulados", cj["cj_indices_acumulados"], "valor não reconhecido", INDICES_ACUMULADOS)
+    _dados_especificos(r, cj, base)
     for antigo, motivo in (("cj_outro_indice", "formato antigo: use cj_correcoes_combinadas [{indice, a_partir}]"),
                            ("cj_outro_indice_a_partir", "formato antigo: use cj_correcoes_combinadas [{indice, a_partir}]"),
                            ("cj_fazenda", "fora do contrato: use a opção da lista (juros 'Juros Fazenda Pública' ou índice 'Devedor Fazenda Pública')")):

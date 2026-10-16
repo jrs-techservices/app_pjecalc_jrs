@@ -425,6 +425,7 @@ class Correcao(DadosCalculo):
 
     def aplicar_correcao_e_juros_do_pedido(self, driver):
         """Tabela de juros e as combinações de índice e de juros do .json. Sem as chaves, fica o padrão do PJe-Calc."""
+        self._caixa_pedida(driver, 'cj_ignorar_taxa_negativa', 'ignorarTaxaNegativa')
         juros = self._valor_do_pedido('cj_juros')
         if juros is not None:
             Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:juros')))).select_by_visible_text(str(juros))
@@ -439,6 +440,95 @@ class Correcao(DadosCalculo):
         if combinados is not None:
             self._combinar(driver, 'combinarOutroJuros', 'addOutroJuros', None, 'outroJuros',
                            'apartirDeOutroJurosInputDate', 'combinação de juros', combinados)
+
+    # --- aba Dados Específicos a partir do .json (chaves cj_*), na ordem em que a tela habilita cada campo ---
+    def _caixa_pedida(self, driver, chave, id_campo):
+        from Tools.pendencias import registrar
+        valor = self._valor_do_pedido(chave)
+        if valor is None:
+            return
+        marcar = booleano_da_planilha(valor)
+        campo = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, f'formulario:{id_campo}')))
+        if not campo.is_enabled():
+            if campo.is_selected() != marcar:
+                registrar("Correção, Juros e Multa", f"'{id_campo}' desabilitado na tela; {chave} não aplicado", origem="automacao")
+            return
+        if campo.is_selected() != marcar:
+            campo.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+
+    def _radio_pedido(self, driver, chave, id_base, opcoes):
+        valor = self._valor_do_pedido(chave)
+        if valor is None or str(valor) not in opcoes:
+            return
+        campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:{id_base}:{opcoes.index(str(valor))}')))
+        if not campo.is_selected():
+            campo.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+
+    def _data_pedida(self, driver, chave, ids_candidatos):
+        from selenium.webdriver.common.keys import Keys
+        from Tools.pendencias import registrar
+        valor = self._valor_do_pedido(chave)
+        if valor is None:
+            return
+        texto = valor.strftime("%d/%m/%Y") if hasattr(valor, "strftime") else str(valor).strip()
+        for id_campo in ids_candidatos:
+            campos = [c for c in driver.find_elements(By.ID, f'formulario:{id_campo}') if c.is_displayed() and c.is_enabled()]
+            if campos:
+                # sem passar pelo campo: o onblur das datas da CS ("sugerirDataAPartirDe…") copia a data para o campo do
+                # outro bloco (devidos ↔ pagos) e as duas ficariam iguais
+                driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', {bubbles: true}));",
+                                      campos[0], texto)
+                time.sleep(0.5)
+                return
+        registrar("Correção, Juros e Multa", f"campo de data de {chave} não está na tela; não aplicado", origem="automacao")
+
+    def _select_pedido(self, driver, chave, id_campo):
+        valor = self._valor_do_pedido(chave)
+        if valor is None:
+            return
+        Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, f'formulario:{id_campo}')))).select_by_visible_text(str(valor))
+        time.sleep(0.5)
+
+    def aplicar_dados_especificos_do_pedido(self, driver):
+        if not any(isinstance(k, str) and k.strip().startswith(('cj_fgts', 'cj_pp', 'cj_custas', 'cj_cs_')) for k in self.planilha_base['IDENTIFICADOR']):
+            return
+        indice_proprio = ("Utilizar índice trabalhista", "Utilizar outro índice")
+        self._radio_pedido(driver, 'cj_fgts_indice', 'indiceDeCorrecaoDoFGTS',
+                           ("Utilizar índice trabalhista", "Utilizar índice JAM", "Utilizar índice JAM e índice trabalhista"))
+        self._caixa_pedida(driver, 'cj_pp_juros', 'jurosDePrevidenciaPrivada')
+        self._radio_pedido(driver, 'cj_pp_indice', 'indiceDeCorrecaoDePrevidenciaPrivada', indice_proprio)
+        self._select_pedido(driver, 'cj_pp_outro_indice', 'outroIndiceDeCorrecaoDePrevidenciaPrivada')
+        self._caixa_pedida(driver, 'cj_custas_correcao', 'correcaoDasCustas')
+        self._caixa_pedida(driver, 'cj_custas_juros', 'jurosDeCustas')
+        self._radio_pedido(driver, 'cj_custas_indice', 'indiceDeCorrecaoDasCustas', indice_proprio)
+        self._select_pedido(driver, 'cj_custas_outro_indice', 'outroIndiceDeCorrecaoDasCustas')
+        for bloco, sufixo, forma_id, forma_data, lei in (
+                ('dev', 'DosSalariosDevidosDoINSS', 'radioFormaAplicacao', 'aPartirDeFormaCorrecaoSalarioDevidoInputDate',
+                 ('cj_cs_lei11941', 'correcaoLei11941', 'aplicarAteLei11941InputDate', 'cj_cs_lei11941_a_partir',
+                  'cj_cs_limitar_multa', 'correcaoLei11941Multa', 'aplicarAteLei11941MultaInputDate', 'cj_cs_limitar_multa_a_partir')),
+                ('pag', 'DosSalariosPagosDoINSS', 'radioFormaAplicacaoSalarioPago', 'aPartirDeFormaCorrecaoSalarioPagoInputDate',
+                 ('cj_cs_pag_lei11941', 'correcaoLei11941Pago', 'aplicarAteLei11941PagoInputDate', 'cj_cs_pag_lei11941_a_partir',
+                  'cj_cs_pag_limitar_multa', 'correcaoLei11941PagoMulta', 'aplicarAteLei11941PagoMultaInputDate', 'cj_cs_pag_limitar_multa_a_partir'))):
+            p = f'cj_cs_{bloco}_'
+            self._caixa_pedida(driver, p + 'trab_correcao', f'correcaoTrabalhista{sufixo}')
+            self._caixa_pedida(driver, p + 'prev_correcao', f'correcaoPrevidenciaria{sufixo}')
+            self._caixa_pedida(driver, p + 'trab_juros', f'jurosTrabalhistas{sufixo}')
+            self._caixa_pedida(driver, p + 'prev_juros', f'jurosPrevidenciarios{sufixo}')
+            self._radio_pedido(driver, p + 'forma', forma_id, ("Mês-a-mês", "A partir de"))
+            self._data_pedida(driver, p + 'data', (f'aplicarAte{sufixo}InputDate', forma_data))
+            self._caixa_pedida(driver, p + 'multa', f'aplicarMulta{sufixo}')
+            self._radio_pedido(driver, p + 'multa_tipo', f'tipoDeMulta{sufixo}', ("Urbana", "Rural"))
+            self._radio_pedido(driver, p + 'multa_pagamento', f'pagamentoDaMulta{sufixo}', ("Integral", "Reduzido"))
+            chave_lei, id_lei, id_lei_data, chave_lei_data, chave_lim, id_lim, id_lim_data, chave_lim_data = lei
+            self._caixa_pedida(driver, chave_lei, id_lei)
+            self._data_pedida(driver, chave_lei_data, (id_lei_data,))
+            self._caixa_pedida(driver, chave_lim, id_lim)
+            self._data_pedida(driver, chave_lim_data, (id_lim_data,))
+        print("- [Correção] Dados Específicos do pedido aplicados")
 
     def acessar_aba_dados_especificos(self, driver):
         WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tabDadosEspecificos_lbl'))).click()
@@ -643,6 +733,7 @@ class Correcao(DadosCalculo):
         self.aplicar_sumula_368_tst_v3_34(driver)
         # Tempo de controle
         time.sleep(self.delayG)
+        self.aplicar_dados_especificos_do_pedido(driver)
         self.preencher_dados_especificos(driver)
         # Tempo de controle
         time.sleep(self.delayG)
