@@ -528,7 +528,8 @@ def _usar_campos_da_multa(r, n, item, tipo, credor, juros):
     if credor == "Terceiro e Reclamante":
         aplicados.add("tipoCobrancaReclamante")
     if tipo == "INFORMADO":
-        aplicados |= {"dataVencimentoMulta", "valorMulta", "aplicarJurosSobreMulta"} | ({"dataJurosAPartirDe"} if juros else set())
+        aplicados |= {"dataVencimentoMulta", "valorMulta", "aplicarJurosSobreMulta", "opcaoIndiceDeCorrecaoDaMulta",
+                      "outroIndiceDeCorrecaoDaMulta"} | ({"dataJurosAPartirDe"} if juros else set())
     else:
         aplicados |= {"aliquotaMulta", "tipoBaseMulta", "aplicarJurosSobreMulta"}
     for campo in item:
@@ -537,7 +538,7 @@ def _usar_campos_da_multa(r, n, item, tipo, credor, juros):
         elif campo == "tipoCobrancaReclamante":
             r.ignorar(f"multas[{n}].{campo}", "a tela só pergunta a cobrança com credor TERCEIRO_RECLAMANTE")
         elif campo in ("opcaoIndiceDeCorrecaoDaMulta", "outroIndiceDeCorrecaoDaMulta"):
-            r.ignorar(f"multas[{n}].{campo}", "correção monetária própria da multa ainda não lançada pela automação (fica o índice trabalhista)")
+            r.ignorar(f"multas[{n}].{campo}", "correção própria só existe na multa INFORMADA (a CALCULADA usa o índice trabalhista)")
         else:
             r.ignorar(f"multas[{n}].{campo}", f"a tela da multa {tipo} não usa este campo neste caso")
 
@@ -567,6 +568,7 @@ def _multas(r):
         if not descricao:
             r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória")
         vencimento, valor, base_multa, aliquota, juros_desde = "-", "-", "-", "-", "-"
+        indice_outro = None
         juros = bool(item.get("aplicarJurosSobreMulta"))
         if tipo == "INFORMADO":
             vencimento = r.data(f"{base}.dataVencimentoMulta", item.get("dataVencimentoMulta"))
@@ -577,6 +579,16 @@ def _multas(r):
                 juros_desde = _serial(item.get("dataJurosAPartirDe"))
                 if juros_desde is None:
                     r.erro(f"{base}.aplicarJurosSobreMulta", True, "com juros, mande 'dataJurosAPartirDe' (AAAA-MM-DD)")
+            opcao = item.get("opcaoIndiceDeCorrecaoDaMulta")
+            if opcao not in (None, "", "UTILIZAR_INDICE_TRABALHISTA"):
+                aceitos = CATALOGO["telas"]["correcao-juros-multa"]["listas"]["indiceTrabalhista"]
+                if opcao != "UTILIZAR_OUTRO_INDICE":
+                    r.erro(f"{base}.opcaoIndiceDeCorrecaoDaMulta", opcao, "valor não reconhecido", ["UTILIZAR_INDICE_TRABALHISTA", "UTILIZAR_OUTRO_INDICE"])
+                elif item.get("outroIndiceDeCorrecaoDaMulta") not in aceitos:
+                    r.erro(f"{base}.outroIndiceDeCorrecaoDaMulta", item.get("outroIndiceDeCorrecaoDaMulta"),
+                           "obrigatório com UTILIZAR_OUTRO_INDICE; texto da lista indiceTrabalhista", aceitos)
+                else:
+                    indice_outro = item["outroIndiceDeCorrecaoDaMulta"]
         else:
             if juros:
                 r.erro(f"{base}.aplicarJurosSobreMulta", True, "juros em multa CALCULADA ainda não suportados")
@@ -592,6 +604,8 @@ def _multas(r):
                     (f"multas_indenizacoes_valor_{n}", valor), (f"multas_indenizacoes_base_pje-calc_{n}", base_multa),
                     (f"multas_indenizacoes_aliquota_{n}", aliquota), (f"multas_indenizacoes_aplicar_juros_{n}", "SIM" if juros else "NÃO"),
                     (f"multas_indenizacoes_a_partir_de_{n}", juros_desde)]
+        if indice_outro:
+            familia.append((f"multas_indenizacoes_indice_outro_{n}", indice_outro))
         _usar_campos_da_multa(r, n - 1, item, tipo, credor, juros)
     r.familias.append(("multas", familia))
 

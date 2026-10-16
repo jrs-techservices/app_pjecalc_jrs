@@ -348,6 +348,7 @@ class MultasIndenizacoes:
                                 WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.NAME, "formulario:dataJurosAPartirDeInputDate"))).send_keys(self.multas_indenizacoes_a_partir_de_1)
                                 time.sleep(0.5)
 
+                            self.aplicar_indice_da_multa(driver, f"multas_indenizacoes_indice_outro_{indice}")
                             self.salvar(driver)
                             self.objTools.aguardar_carregamento(driver)
 
@@ -360,6 +361,19 @@ class MultasIndenizacoes:
 
                 print('\n')
                 indice += 1
+
+    def aplicar_indice_da_multa(self, driver, chave):
+        """Correção monetária própria da multa INFORMADA (do .json): "Utilizar outro índice" + o índice da lista."""
+        valores = [v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str) and k.strip() == chave]
+        if not valores or not isinstance(valores[0], str) or not valores[0].strip():
+            return
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:correcaoMonetaria:1'))).click()
+        self.objTools.aguardar_carregamento(driver)
+        time.sleep(1)
+        Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:outroIndiceCorrecao')))).select_by_visible_text(valores[0].strip())
+        time.sleep(0.5)
+        print(f"- [Multa] correção por outro índice: {valores[0].strip()}")
 
     def salvar(self, driver):
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:salvar'))).click()

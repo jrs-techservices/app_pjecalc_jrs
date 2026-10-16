@@ -298,6 +298,13 @@ Com `ir_apurar = false` a tela desabilita todas as outras: mandá-las junto → 
 (Apurar e as quatro deduções marcadas; o resto desmarcado). Sem nenhuma chave `ir_*`, a tela não é tocada. As chaves do
 formato antigo (`ir_regime`, `ir_exclusiva`, `ir_deducoes`, em texto) vão para `ignorados`.
 
+### `multas[]`: correção monetária própria da multa INFORMADA (implementado em 16/10/2026)
+
+`"opcaoIndiceDeCorrecaoDaMulta": "UTILIZAR_OUTRO_INDICE"` + `"outroIndiceDeCorrecaoDaMulta": <texto da lista indiceTrabalhista>` →
+"Utilizar outro índice" da multa. Só na INFORMADA (na CALCULADA vai para ignorados); ausente ou `UTILIZAR_INDICE_TRABALHISTA` = índice
+trabalhista. Outro índice fora da lista → `400`. No .PJC: `Multa/{opcaoIndiceDeCorrecaoDaMulta, outroIndiceDeCorrecaoDaMulta}`
+(IPCA-E → `IPCAE`). Desde 16/10 a porta só marca como usados os campos que a tela da multa aplica; o resto vai para ignorados por item.
+
 ### `honorarios[]`: documento e IR do credor, juros e correção do INFORMADO (implementado em 16/10/2026)
 
 | campo | valores | condição |
