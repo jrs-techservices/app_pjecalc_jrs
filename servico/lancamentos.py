@@ -446,6 +446,29 @@ def _honorarios(r):
     r.familias.append(("honorarios", familia))
 
 
+def _usar_campos_da_multa(r, n, item, tipo, credor, juros):
+    """Só conta como usado o que a tela da multa aplica neste caso; o resto vai para ignorados, por item, com o motivo
+    (antes, qualquer campo do item virava "usado", inclusive os que a automação não digita)."""
+    aplicados = {"descricao", "tipoCredorDevedor", "tipoValorDaMulta"}
+    if credor and credor.startswith("Terceiro"):
+        aplicados.add("nomeTerceiro")
+    if credor == "Terceiro e Reclamante":
+        aplicados.add("tipoCobrancaReclamante")
+    if tipo == "INFORMADO":
+        aplicados |= {"dataVencimentoMulta", "valorMulta", "aplicarJurosSobreMulta"} | ({"dataJurosAPartirDe"} if juros else set())
+    else:
+        aplicados |= {"aliquotaMulta", "tipoBaseMulta", "aplicarJurosSobreMulta"}
+    for campo in item:
+        if campo in aplicados:
+            r.usados.add(f"multas[].{campo}")
+        elif campo == "tipoCobrancaReclamante":
+            r.ignorar(f"multas[{n}].{campo}", "a tela só pergunta a cobrança com credor TERCEIRO_RECLAMANTE")
+        elif campo in ("opcaoIndiceDeCorrecaoDaMulta", "outroIndiceDeCorrecaoDaMulta"):
+            r.ignorar(f"multas[{n}].{campo}", "correção monetária própria da multa ainda não lançada pela automação (fica o índice trabalhista)")
+        else:
+            r.ignorar(f"multas[{n}].{campo}", f"a tela da multa {tipo} não usa este campo neste caso")
+
+
 def _multas(r):
     itens = r.dados.get("multas")
     if itens is None:
@@ -496,7 +519,7 @@ def _multas(r):
                     (f"multas_indenizacoes_valor_{n}", valor), (f"multas_indenizacoes_base_pje-calc_{n}", base_multa),
                     (f"multas_indenizacoes_aliquota_{n}", aliquota), (f"multas_indenizacoes_aplicar_juros_{n}", "SIM" if juros else "NÃO"),
                     (f"multas_indenizacoes_a_partir_de_{n}", juros_desde)]
-        r.usados.update(f"multas[].{c}" for c in item)
+        _usar_campos_da_multa(r, n - 1, item, tipo, credor, juros)
     r.familias.append(("multas", familia))
 
 
