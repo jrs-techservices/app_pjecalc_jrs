@@ -217,7 +217,12 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 Exemplo — ADC 58 + Lei 14.905/2024, ajuizamento 19/02/2024: `cj_correcao` `"IPCA-E"`, `cj_juros` `"TRD Juros Simples"`,
 `cj_juros_pre_judicial` `true`, `cj_correcoes_combinadas` `[{"indice": "Sem Correção", "a_partir": "2024-02-19"}, {"indice": "IPCA", "a_partir": "2024-08-30"}]`,
 `cj_juros_combinados` `[{"juros": "SELIC (Receita Federal)", "a_partir": "2024-02-19"}, {"juros": "Taxa Legal", "a_partir": "2024-08-30"}]`
-(testado na 2.16 em 16/10/2026). Formato antigo (`cj_outro_indice` "Sim" + `cj_outro_indice_a_partir`) e `cj_fazenda` vão para ignorados;
+(testado na 2.16 em 16/10/2026). Ajuizamento depois de 30/08/2024 (Lei 14.905 já vigente): `cj_correcao` `"IPCA"`,
+`cj_juros` `"Taxa Legal"`, `cj_juros_pre_judicial` `false`, `cj_juros_combinados` `[]` → no .PJC `juros = TAXA_LEGAL`, sem combinação. Com
+`cj_juros_pre_judicial = false` os juros começam no ajuizamento e a tela recusa combinação de juros nessa data ou antes ("O valor do campo
+'A partir de' deve ser maior que Data de Ajuizamento"): a porta recusa (400). No .PJC as combinações ficam em
+`ParametrosDeAtualizacao/listaDeCombinacaoDeIndices/CombinacaoDeIndice/{outroIndiceTrabalhista, apartirDeOutroIndice}` e
+`…/listaDeCombinacaoDeJuros/CombinacaoDeJuros/{outroJuros, apartirDeOutroJuros}` (códigos: `SEM_CORRECAO`, `IPCA`, `IPCAE`, `SELIC`, `TAXA_LEGAL`, `TRD_SIMPLES`). Formato antigo (`cj_outro_indice` "Sim" + `cj_outro_indice_a_partir`) e `cj_fazenda` vão para ignorados;
 `telas.dados-do-calculo.indices_acumulados` (sim/não) também — use `cj_indices_acumulados`.
 
 

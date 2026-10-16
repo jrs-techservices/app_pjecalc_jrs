@@ -1211,6 +1211,17 @@ def _correcao_e_juros(r, cj):
 
     combinacoes("cj_correcoes_combinadas", "indice", listas["indiceTrabalhista"], "cj_correcoes_combinadas")
     combinacoes("cj_juros_combinados", "juros", listas["juros"], "cj_juros_combinados")
+    # sem juros pré-judiciais os juros começam no ajuizamento: a tela recusa combinação nessa data ou antes ("O valor do
+    # campo 'A partir de' deve ser maior que Data de Ajuizamento") e o cálculo sairia sem juros
+    ajuizamento = r.valores.get("data_ajuizamento")
+    if cj.get("cj_juros_pre_judicial") is False and isinstance(ajuizamento, int) and r.valores.get("cj_juros_combinados"):
+        cedo = [desde for _, desde in json.loads(r.valores["cj_juros_combinados"])
+                if (datetime.strptime(desde, "%d/%m/%Y") - ORIGEM_EXCEL).days <= ajuizamento]
+        if cedo:
+            r.erro(f"{base}.cj_juros_combinados", cj.get("cj_juros_combinados"),
+                   f"com cj_juros_pre_judicial = false a combinação precisa ser depois do ajuizamento "
+                   f"({ORIGEM_EXCEL + timedelta(days=ajuizamento):%d/%m/%Y}); para juros desde o ajuizamento, use a própria cj_juros")
+            r.valores.pop("cj_juros_combinados", None)
     if cj.get("cj_base_juros") not in (None, ""):
         if cj["cj_base_juros"] in listas["baseDeJurosDasVerbas"]:
             r.usar(f"{base}.cj_base_juros", "verbas_base_de_juros", cj["cj_base_juros"])  # chave da planilha (aba Dados Específicos)
