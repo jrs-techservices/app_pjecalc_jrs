@@ -1099,6 +1099,45 @@ def _contribuicao_social_completa(r, cs):
             r.ignorar(f"contribuicaoSocial.{chave}", "campo não reconhecido")
 
 
+IR_CAIXAS = ("ir_sobre_juros", "ir_cobrar_reclamado", "ir_tributacao_exclusiva", "ir_tributacao_em_separado", "ir_regime_caixa",
+             "ir_deduzir_cs_reclamante", "ir_deduzir_previdencia_privada", "ir_deduzir_pensao_alimenticia",
+             "ir_deduzir_honorarios_reclamante", "ir_aposentado_65")
+IR_FORMATO_ANTIGO = ("ir_regime", "ir_exclusiva", "ir_deducoes")
+
+
+def _imposto_de_renda(r, ir):
+    """telas.imposto-de-renda: as caixas da tela (booleano) e ir_dependentes (inteiro ≥ 0). Com ir_apurar = false a tela
+    desabilita todas as outras: mandá-las junto → 400. As chaves do formato antigo (texto) ficam em ignorados."""
+    base = "telas.imposto-de-renda"
+    apurar = ir.get("ir_apurar")
+    if "ir_apurar" in ir:
+        if isinstance(apurar, bool):
+            r.usar(f"{base}.ir_apurar", "ir_apurar", _texto(apurar))
+        else:
+            r.erro(f"{base}.ir_apurar", apurar, "use true ou false")
+    fora = "só com ir_apurar = true (a tela desabilita as outras caixas sem ele)"
+    for campo in IR_CAIXAS:
+        if campo not in ir:
+            continue
+        if not isinstance(ir[campo], bool):
+            r.erro(f"{base}.{campo}", ir[campo], "use true ou false")
+        elif apurar is False:
+            r.erro(f"{base}.{campo}", ir[campo], fora)
+        else:
+            r.usar(f"{base}.{campo}", campo, _texto(ir[campo]))
+    if "ir_dependentes" in ir:
+        valor = ir["ir_dependentes"]
+        if isinstance(valor, bool) or not isinstance(valor, int) or valor < 0:
+            r.erro(f"{base}.ir_dependentes", valor, "número inteiro de 0 em diante")
+        elif apurar is False:
+            r.erro(f"{base}.ir_dependentes", valor, fora)
+        else:
+            r.usar(f"{base}.ir_dependentes", "ir_dependentes", valor)
+    for campo in IR_FORMATO_ANTIGO:
+        if campo in ir:
+            r.ignorar(f"{base}.{campo}", "formato antigo (texto); use as caixas do contrato novo (ir_tributacao_exclusiva, …)")
+
+
 def _telas(r):
     telas = r.dados.get("telas") or {}
     dados = telas.get("dados-do-calculo") or {}
@@ -1110,6 +1149,10 @@ def _telas(r):
     for campo, chave in (("reclamante_cpf", "doc_parte1"), ("reclamado_cnpj", "doc_parte2"), ("reclamado_cpf", "doc_parte2")):
         if dados.get(campo):
             r.usar(f"{base}.{campo}", chave, documento_da_planilha(dados[campo]))
+    if dados.get("autuado_em"):
+        serial = r.data(f"{base}.autuado_em", dados["autuado_em"])
+        if serial is not None:
+            r.usar(f"{base}.autuado_em", "autuado_em", f"{ORIGEM_EXCEL + timedelta(days=serial):%d/%m/%Y}")
     if dados.get("reclamante_pis"):
         digitos = re.sub(r"\D", "", str(dados["reclamante_pis"]))
         if pis_valido(digitos):
@@ -1246,6 +1289,8 @@ def _telas(r):
             r.usar("telas.contribuicao-social.cs_atividade_economica", "cont_social_aliquota_empregador", atividade)
     _contribuicao_social_completa(r, contribuicao)
 
+    _imposto_de_renda(r, telas.get("imposto-de-renda") or {})
+
     correcao = telas.get("correcao-juros-multa") or {}
     if "cj_correcao" in correcao:
         aceitos = CATALOGO["telas"]["correcao-juros-multa"]["listas"]["indiceTrabalhista"]
@@ -1267,7 +1312,7 @@ def _telas(r):
             caminho = f"telas.{tela}.{campo}"
             if caminho not in r.usados and not any(e["campo"] == caminho for e in r.erros):
                 if tela in ("salario-familia", "seguro-desemprego", "previdencia-privada", "pensao-alimenticia",
-                            "imposto-de-renda", "cartao-de-ponto"):
+                            "cartao-de-ponto"):
                     r.ignorar(caminho, "tela ainda não automatizada")
                 else:
                     r.ignorar(caminho, "campo sem correspondente na automação")

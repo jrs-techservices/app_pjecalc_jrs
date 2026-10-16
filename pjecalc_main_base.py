@@ -10,6 +10,7 @@ from Calculo.pjecalc_verbas import VerbasModel
 # from Calculo.verbas import Verbas
 from Calculo.pjecalc_fgts import FGTS
 from Calculo.pjecalc_contribuicao_social import ContribuicaoSocial
+from Calculo.pjecalc_imposto_renda import ImpostoRenda
 from Calculo.pjecalc_multas_e_indenizacoes import MultasIndenizacoes
 from Calculo.pjecalc_honorarios import Honorarios
 from Calculo.pjecalc_custas_judiciais import Custas
@@ -106,6 +107,11 @@ def function_main(driver, value):
                 # # ---------- PJeCalc - Contribuição Social ---------- #
                 objeto_social = ContribuicaoSocial(locale_plabase)
                 objeto_social.main_contribuicao_social(driver, admissao, rescisao, inicio_calculo, termino_calculo)
+                objTools.limparFilesTemp()
+
+                # ---------- PJeCalc - Imposto de Renda (só com ir_* do .json) ---------- #
+                objeto_ir = ImpostoRenda(locale_plabase)
+                objeto_ir.main_imposto_renda(driver)
                 objTools.limparFilesTemp()
 
                 try:

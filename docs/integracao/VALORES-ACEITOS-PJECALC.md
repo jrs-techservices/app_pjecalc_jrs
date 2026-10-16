@@ -197,6 +197,7 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `dados-do-calculo.carga_horaria` | número (ou texto com número: `"220h"`) | sem número: recusado |
 | `dados-do-calculo.sabado_dia_util` | `true`/`false` | |
 | `dados-do-calculo.regime` (ou `regime_trabalho`) | lista do §3 | |
+| `dados-do-calculo.autuado_em` | data `AAAA-MM-DD` | campo "Autuado em" (formulario:autuadoEm) |
 | `dados-do-calculo.reclamante_pis` | texto com 11 dígitos (`"120.56551.23-5"`) | dígito verificador conferido; inválido: recusado. Marca a opção PIS e grava o número |
 | `dados-do-calculo.uf` · `municipio` | sigla · nome na lista do PJe-Calc para a UF | município fora da lista: recusado |
 | demais campos de `dados-do-calculo` | tabela da seção acima | |
@@ -253,6 +254,21 @@ Competências `MM/AAAA`, fim ≥ início, sem sobreposição, dentro do contrato
 vale com qualquer alíquota; `aliquotasPorPeriodo` só com `Por Período`, e é obrigatória nela (`empresa` e `sat` obrigatórios,
 `terceiros` opcional). Período que o PJe-Calc recusar ao incluir vira pendência na execução. Com planilha que marca
 agroindústria/desoneração/filantrópica (ou Simples), a planilha prevalece.
+
+### `telas.imposto-de-renda`: a tela inteira (implementado em 16/10/2026)
+
+| campo | caixa da tela | valores |
+|---|---|---|
+| `ir_apurar` | `apurarImpostoRenda` | `true`/`false` |
+| `ir_sobre_juros` · `ir_cobrar_reclamado` | `incidirSobreJurosDeMora` · `cobrarDoReclamado` | `true`/`false` |
+| `ir_tributacao_exclusiva` · `ir_tributacao_em_separado` · `ir_regime_caixa` | `considerarTributacaoExclusiva` · `considerarTributacaoEmSeparado` · `regimeDeCaixa` | `true`/`false` |
+| `ir_deduzir_cs_reclamante` · `ir_deduzir_previdencia_privada` · `ir_deduzir_pensao_alimenticia` · `ir_deduzir_honorarios_reclamante` | `deduzirContribuicaoSocialDevidaPeloReclamante` · `deduzirPrevidenciaPrivada` · `deduzirPensaoAlimenticia` · `deduzirHonorariosDevidosPeloReclamante` | `true`/`false` |
+| `ir_aposentado_65` | `aposentadoMaiorQue65Anos` | `true`/`false` |
+| `ir_dependentes` | `possuiDependentes` + `quantidadeDependentes` | inteiro ≥ 0 (0 desmarca) |
+
+Com `ir_apurar = false` a tela desabilita todas as outras: mandá-las junto → `400`. Campo ausente fica no padrão da tela
+(Apurar e as quatro deduções marcadas; o resto desmarcado). Sem nenhuma chave `ir_*`, a tela não é tocada. As chaves do
+formato antigo (`ir_regime`, `ir_exclusiva`, `ir_deducoes`, em texto) vão para `ignorados`.
 
 ### `parametrosDoCalculo`: exceções da carga horária e do sábado (Dados do Cálculo › Parâmetros)
 
@@ -350,7 +366,7 @@ O `202` do `POST /calculos` já traz `execucao.lancamentos_resumo` com `usados`,
 
 ### Ainda não lido de `telas`
 
-`imposto-de-renda` (vai para `ignorados` com o motivo). FGTS e Contribuição Social são lidos por inteiro (seções acima).
+nenhuma: FGTS, Contribuição Social e Imposto de Renda são lidos por inteiro (seções acima).
 
 ## 3. Listas de cada tela, como o PJe-Calc as mostra
 

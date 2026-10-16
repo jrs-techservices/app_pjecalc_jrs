@@ -817,6 +817,18 @@ class DadosCalculo:
             .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.textContent.split('//<!')[0].trim())
             .filter(t => t && !/sucesso/i.test(t));""")
 
+    def lancar_autuado_em_do_pedido(self, driver):
+        """Data de autuação (chave autuado_em, do .json, em DD/MM/AAAA)."""
+        data = self._valor_do_pedido('autuado_em')
+        if data is None:
+            return
+        texto = data.strftime("%d/%m/%Y") if hasattr(data, "strftime") else str(data).strip()
+        gravado = self._digitar_campo(driver, 'formulario:autuadoEm', texto)
+        if gravado != texto:
+            registrar("Dados do Cálculo", f"'Autuado em' não ficou como pedido ({texto}); a tela mostra '{gravado}'", origem="automacao")
+        else:
+            print(f"- [AUTUADO_EM]: {gravado}")
+
     def lancar_pis_do_pedido(self, driver):
         """PIS do reclamante (chave pis_parte1, do .json): opção PIS + número."""
         pis = self._valor_do_pedido('pis_parte1')
@@ -2792,6 +2804,7 @@ class DadosCalculo:
         self.get_id_processo()
         self.get_numero_processo_and_digitar(driver)
         sleep(self.delayDefault)
+        self.lancar_autuado_em_do_pedido(driver)
 
         self.get_valor_causa_and_digitar(driver)
         sleep(self.delayDefault)
