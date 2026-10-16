@@ -293,9 +293,26 @@ def _custas(r):
     r.familias.append(("custas", familia))
 
 
+# campos que a tela do honorário mostra em cada tipo de valor (o resto do item não tem onde entrar)
+CAMPOS_HONORARIO = {
+    "INFORMADO": {"descricao", "tipoHonorario", "tipoDeDevedor", "tipoCobrancaReclamante", "nomeCredor", "tipoValor", "dataVencimento", "valor"},
+    "CALCULADO": {"descricao", "tipoHonorario", "tipoDeDevedor", "tipoCobrancaReclamante", "nomeCredor", "tipoValor", "aliquota",
+                  "baseParaApuracao", "tipoDeIndiceDeCorrecao"},
+}
+
 # Honorário CALCULADO vai pela família 'contratuais' da tela: ela pula tipo com '-' (os periciais) e aplica .title()
 # ao tipo (o que estraga 'Honorários de Sucumbência'); por isso só estes quatro.
 TIPOS_HONORARIO_CALCULADO = {"Honorários Advocatícios", "Honorários Assistenciais", "Honorários Contratuais", "Leiloeiro"}
+
+
+def _usar_campos_do_honorario(r, n, item, tipo_valor):
+    for campo in item:
+        if campo in CAMPOS_HONORARIO[tipo_valor]:
+            r.usados.add(f"honorarios[].{campo}")
+        elif campo == "dataVencimento":
+            r.ignorar(f"honorarios[{n}].dataVencimento", "no honorário CALCULADO a tela não tem vencimento: o PJe-Calc usa a data da liquidação")
+        else:
+            r.ignorar(f"honorarios[{n}].{campo}", f"a tela do honorário {tipo_valor} não tem este campo")
 
 
 def _honorarios(r):
@@ -327,7 +344,7 @@ def _honorarios(r):
                 r.erro(f"{base}.valor", item.get("valor"), "valor obrigatório em honorário INFORMADO")
             if None not in (tipo, devedor, cobranca, vencimento, valor):
                 informados.append((tipo, descricao, devedor, cobranca, vencimento, valor, credor))
-                r.usados.update(f"honorarios[].{c}" for c in item)
+                _usar_campos_do_honorario(r, n, item, "INFORMADO")
             continue
         if tipo and tipo not in TIPOS_HONORARIO_CALCULADO:
             r.erro(f"{base}.tipoHonorario", item.get("tipoHonorario"), "honorário CALCULADO deste tipo ainda não suportado",
@@ -342,7 +359,7 @@ def _honorarios(r):
                                        CATALOGO["telas"]["honorarios"]["listas"]["baseParaApuracao"])
         if None not in (tipo, devedor, cobranca, aliquota, base_apuracao):
             calculados.append((tipo, descricao, devedor, "DEDUZIR" if cobranca == "DESCONTAR" else "COBRAR", aliquota, base_apuracao, credor))
-            r.usados.update(f"honorarios[].{c}" for c in item)
+            _usar_campos_do_honorario(r, n, item, "CALCULADO")
 
     familia = [("qtd_honorarios_periciais", len(informados))]
     for n, (tipo, descricao, devedor, cobranca, vencimento, valor, credor) in enumerate(informados, start=1):
@@ -1420,7 +1437,9 @@ def interpretar(caminho):
             r.valores.setdefault(gatilho, "<nao_preenchido>")
     from servico.verbas_pedido import interpretar_verbas
     interpretar_verbas(r)
+    # ignorados por item (honorarios[0].dataVencimento) já contam como tratados
+    tratados = {re.sub(r"\[\d+\]", "[]", k) for k in r.ignorados}
     for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo")}):
-        if folha and folha not in META and folha not in r.usados and not folha.endswith("contrato"):
+        if folha and folha not in META and folha not in r.usados and folha not in tratados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r
