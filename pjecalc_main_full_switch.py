@@ -94,13 +94,23 @@ def function_main(driver, value):
                 objTools.limparFilesTemp()
 
 
-                # # ---------- PJeCalc - Verbas ---------- #
-                # objeto_verbas = Verbas(objGUI.source_file)
-                # resul = objeto_verbas.functionMain(driver)
-                # if resul == 1:
+                # FLUXO_LIQUIDACAO_UNICA=1: as verbas reais entram aqui e há uma liquidação só; a verba-modelo (que só existe
+                # porque o PJe-Calc não liquida sem verba) é criada apenas se a planilha de verbas vier sem registros.
+                # Desligada: o fluxo de sempre (modelo → 1ª liquidação → verbas reais → exclui a modelo → 2ª liquidação).
+                liquidacao_unica = os.environ.get("FLUXO_LIQUIDACAO_UNICA") == "1"
+                objMenu = PjecalcMenu()  # criado aqui: a limpeza do fim (del objMenu) roda nos dois fluxos
                 objeto_verbas_model = VerbasModel()
-                objeto_verbas_model.main_verbas(driver)
-                objTools.limparFilesTemp()
+                if liquidacao_unica:
+                    print("- [fluxo] liquidação única: verbas reais logo depois do Histórico Salarial")
+                    objeto_verbas = Verbas(locale_plaverba)
+                    resul = objeto_verbas.functionMain(driver)
+                    objTools.limparFilesTemp()
+                    if resul == 1:
+                        objeto_verbas_model.main_verbas(driver)
+                        objTools.limparFilesTemp()
+                else:
+                    objeto_verbas_model.main_verbas(driver)
+                    objTools.limparFilesTemp()
 
                 # ---------- PJeCalc - FGTS ---------- #
                 objeto_fgts = FGTS(locale_plabase)
@@ -146,24 +156,24 @@ def function_main(driver, value):
                 objeto_correcao.main_correcao(driver)
                 objTools.limparFilesTemp()
 
-                # ---------- PJeCalc - Liquidar ---------- #
-                objeto_liquidar = Liquidar(locale_plabase)
-                objeto_liquidar.main_liquidar(driver)
-                objTools.limparFilesTemp()
-
-                # ---------- PJeCalc - Menu ---------- #
-                objMenu = PjecalcMenu()
-                objMenu.acessar_calculo(driver)
-
-                # ---------- PJeCalc - Verbas ---------- #
-                objeto_verbas = Verbas(locale_plaverba)
-                resul = objeto_verbas.functionMain(driver)
-                objTools.limparFilesTemp()
-
-                # Com verbas reais no cálculo, a verba-modelo (necessária só para a 1ª liquidação) sai antes da liquidação final.
-                if resul != 1:
-                    objeto_verbas_model.excluir_verba_modelo(driver)
+                if not liquidacao_unica:
+                    # ---------- PJeCalc - Liquidar (1ª, com a verba-modelo) ---------- #
+                    objeto_liquidar = Liquidar(locale_plabase)
+                    objeto_liquidar.main_liquidar(driver)
                     objTools.limparFilesTemp()
+
+                    # ---------- PJeCalc - Menu ---------- #
+                    objMenu.acessar_calculo(driver)
+
+                    # ---------- PJeCalc - Verbas ---------- #
+                    objeto_verbas = Verbas(locale_plaverba)
+                    resul = objeto_verbas.functionMain(driver)
+                    objTools.limparFilesTemp()
+
+                    # Com verbas reais no cálculo, a verba-modelo (necessária só para a 1ª liquidação) sai antes da liquidação final.
+                    if resul != 1:
+                        objeto_verbas_model.excluir_verba_modelo(driver)
+                        objTools.limparFilesTemp()
 
                 # resul = objeto_verbas.functionMain(driver)
                 # if resul == 1:
