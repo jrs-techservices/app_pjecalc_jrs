@@ -912,6 +912,9 @@ def _fgts_completo(r, fgts):
             return False
         return campo in fgts
 
+    compor = opcao("fgts_compor_principal", ("Sim", "Não"))
+    if compor:
+        r.usar(f"{base}.fgts_compor_principal", "compor_principal", _texto(compor == "Sim"))
     aliquota = opcao("fgts_aliquota", ("8%", "2%"))
     r.usar(f"{base}.fgts_aliquota", "fgts_aliquota", aliquota)
     booleano("fgts_multa_lc110", "fgts_multa_lc110")
@@ -1116,6 +1119,73 @@ def _contribuicao_social_completa(r, cs):
             r.ignorar(f"contribuicaoSocial.{chave}", "campo não reconhecido")
 
 
+INDICES_ACUMULADOS = ("MES_SUBSEQUENTE_AO_VENCIMENTO", "MES_DO_VENCIMENTO", "MES_SUBSEQUENTE_E_MES_DO_VENCIMENTO")
+
+
+def _correcao_e_juros(r, cj):
+    """telas.correcao-juros-multa: tabela de juros, combinações de índices e de juros (várias, para as viradas da
+    ADC 58 e da Lei 14.905/2024), base de juros das verbas e índices acumulados (este vai para a tela Liquidar).
+
+    Combinação ausente = padrão do PJe-Calc (com ajuizamento, ele já cria "Sem Juros" a partir dele); lista vazia =
+    nenhuma combinação. Valores = texto exato das listas da tela (catalogo_pjecalc.json).
+    """
+    base = "telas.correcao-juros-multa"
+    listas = CATALOGO["telas"]["correcao-juros-multa"]["listas"]
+    if cj.get("cj_juros") not in (None, ""):
+        if cj["cj_juros"] in listas["juros"]:
+            r.usar(f"{base}.cj_juros", "cj_juros", cj["cj_juros"])
+        else:
+            r.erro(f"{base}.cj_juros", cj["cj_juros"], "tabela de juros fora da lista da tela", listas["juros"])
+
+    def combinacoes(campo, chave_item, opcoes, chave):
+        if campo not in cj:
+            return
+        itens = cj[campo]
+        if not isinstance(itens, list) or not all(isinstance(i, dict) for i in itens):
+            r.erro(f"{base}.{campo}", itens, f"deve ser uma lista de {{ {chave_item}, a_partir }} (lista vazia = nenhuma combinação)")
+            return
+        linhas, erros_antes = [], len(r.erros)
+        for n, item in enumerate(itens):
+            onde = f"{base}.{campo}[{n}]"
+            extras = set(item) - {chave_item, "a_partir"}
+            if extras:
+                r.erro(onde, item, f"campo(s) não reconhecido(s): {', '.join(sorted(extras))}")
+                continue
+            if item.get(chave_item) not in opcoes:
+                r.erro(f"{onde}.{chave_item}", item.get(chave_item), "fora da lista da tela", opcoes)
+                continue
+            serial = r.data(f"{onde}.a_partir", item.get("a_partir"))
+            if serial is not None:
+                linhas.append((serial, item[chave_item]))
+        datas = [s for s, _ in linhas]
+        if len(set(datas)) != len(datas):
+            r.erro(f"{base}.{campo}", itens, "duas combinações na mesma data (a tela recusa)")
+        if len(r.erros) == erros_antes:
+            r.usados.add(f"{base}.{campo}")
+            r.valores[chave] = json.dumps([[valor, f"{ORIGEM_EXCEL + timedelta(days=s):%d/%m/%Y}"] for s, valor in sorted(linhas)],
+                                          ensure_ascii=False)
+
+    combinacoes("cj_correcoes_combinadas", "indice", listas["indiceTrabalhista"], "cj_correcoes_combinadas")
+    combinacoes("cj_juros_combinados", "juros", listas["juros"], "cj_juros_combinados")
+    if cj.get("cj_base_juros") not in (None, ""):
+        if cj["cj_base_juros"] in listas["baseDeJurosDasVerbas"]:
+            r.usar(f"{base}.cj_base_juros", "verbas_base_de_juros", cj["cj_base_juros"])  # chave da planilha (aba Dados Específicos)
+        elif _sem_acento(cj["cj_base_juros"]).startswith("padrao"):
+            r.ignorar(f"{base}.cj_base_juros", "padrão do sistema: fica o da tela (mande só quando não for o padrão)")
+        else:
+            r.erro(f"{base}.cj_base_juros", cj["cj_base_juros"], "fora da lista da tela", listas["baseDeJurosDasVerbas"])
+    if cj.get("cj_indices_acumulados") not in (None, ""):
+        if cj["cj_indices_acumulados"] in INDICES_ACUMULADOS:
+            r.usar(f"{base}.cj_indices_acumulados", "cj_indices_acumulados", cj["cj_indices_acumulados"])
+        else:
+            r.erro(f"{base}.cj_indices_acumulados", cj["cj_indices_acumulados"], "valor não reconhecido", INDICES_ACUMULADOS)
+    for antigo, motivo in (("cj_outro_indice", "formato antigo: use cj_correcoes_combinadas [{indice, a_partir}]"),
+                           ("cj_outro_indice_a_partir", "formato antigo: use cj_correcoes_combinadas [{indice, a_partir}]"),
+                           ("cj_fazenda", "fora do contrato: use a opção da lista (juros 'Juros Fazenda Pública' ou índice 'Devedor Fazenda Pública')")):
+        if antigo in cj:
+            r.ignorar(f"{base}.{antigo}", motivo)
+
+
 IR_CAIXAS = ("ir_sobre_juros", "ir_cobrar_reclamado", "ir_tributacao_exclusiva", "ir_tributacao_em_separado", "ir_regime_caixa",
              "ir_deduzir_cs_reclamante", "ir_deduzir_previdencia_privada", "ir_deduzir_pensao_alimenticia",
              "ir_deduzir_honorarios_reclamante", "ir_aposentado_65")
@@ -1166,6 +1236,10 @@ def _telas(r):
     for campo, chave in (("reclamante_cpf", "doc_parte1"), ("reclamado_cnpj", "doc_parte2"), ("reclamado_cpf", "doc_parte2")):
         if dados.get(campo):
             r.usar(f"{base}.{campo}", chave, documento_da_planilha(dados[campo]))
+    if "indices_acumulados" in dados:
+        r.ignorar(f"{base}.indices_acumulados", "a tela Liquidar tem 3 opções, não sim/não: use telas.correcao-juros-multa."
+                                                "cj_indices_acumulados (MES_SUBSEQUENTE_AO_VENCIMENTO, MES_DO_VENCIMENTO, "
+                                                "MES_SUBSEQUENTE_E_MES_DO_VENCIMENTO)")
     if dados.get("autuado_em"):
         serial = r.data(f"{base}.autuado_em", dados["autuado_em"])
         if serial is not None:
@@ -1323,6 +1397,7 @@ def _telas(r):
                    _texto(correcao["cj_juros_pre_judicial"]))
         else:
             r.erro("telas.correcao-juros-multa.cj_juros_pre_judicial", correcao["cj_juros_pre_judicial"], "use true ou false")
+    _correcao_e_juros(r, correcao)
 
     for tela, campos in telas.items():
         for campo in (campos or {}):

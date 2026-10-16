@@ -147,7 +147,7 @@ def function_main(driver, value):
                 objTools.limparFilesTemp()
 
                 # ---------- PJeCalc - Liquidar ---------- #
-                objeto_liquidar = Liquidar()
+                objeto_liquidar = Liquidar(locale_plabase)
                 objeto_liquidar.main_liquidar(driver)
                 objTools.limparFilesTemp()
 
@@ -174,7 +174,7 @@ def function_main(driver, value):
                 # objMenu.acessar_operacoes(driver)
 
                 # ---------- PJeCalc - Liquidar ---------- #
-                objeto_liquidar = Liquidar()
+                objeto_liquidar = Liquidar(locale_plabase)
                 objeto_liquidar.main_liquidar(driver)
 
                 objTools.limparFilesTemp()

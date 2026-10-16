@@ -206,7 +206,20 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `custas-judiciais.custas_reclamado` | "Não se Aplica" · "Calculada 2%" | "Informada" aqui é recusado: use o bloco `custas` |
 | `contribuicao-social.cs_atividade_economica` | texto da CNAE | igual a `atividadeEconomica` |
 | `correcao-juros-multa.cj_correcao` | índice da lista do §3 (ou "texto (índice)") | fora da lista: recusado |
+| `correcao-juros-multa.cj_juros` | texto exato da lista `juros` do §3 (ex.: `"TRD Juros Simples"`, `"Juros Simples 1,0% a.m."`) | tabela de juros inicial; fora da lista: recusado |
+| `correcao-juros-multa.cj_correcoes_combinadas` | `[{ "indice": <lista indiceTrabalhista>, "a_partir": "AAAA-MM-DD" }, …]` | "Combinar com Outro Índice", uma linha por virada; ausente = padrão da tela; `[]` = sem combinação; duas na mesma data: recusado |
+| `correcao-juros-multa.cj_juros_combinados` | `[{ "juros": <lista juros>, "a_partir": "AAAA-MM-DD" }, …]` | "Combinar com Outra Tabela de Juros"; substitui a linha que o PJe-Calc cria sozinho no ajuizamento ("Sem Juros"); ausente = padrão da tela; `[]` = sem combinação |
+| `correcao-juros-multa.cj_base_juros` | `"Verbas"` · `"Verba (-) Contribuição Social"` · `"Verba (-) Contribuição Social (-) Previdência Privada"` | só quando não for o padrão; `"Padrão do sistema"` vai para ignorados |
+| `correcao-juros-multa.cj_indices_acumulados` | `MES_SUBSEQUENTE_AO_VENCIMENTO` · `MES_DO_VENCIMENTO` · `MES_SUBSEQUENTE_E_MES_DO_VENCIMENTO` | opção da tela Liquidar; ausente = `MES_SUBSEQUENTE_E_MES_DO_VENCIMENTO` (o que o robô sempre usou) |
+| `fgts.fgts_compor_principal` | `"Sim"` · `"Não"` | botão Compor Principal do FGTS |
 | `correcao-juros-multa.cj_juros_pre_judicial` | `true`/`false` | "Aplicar Juros na Fase Pré-Judicial"; sem o campo, fica o padrão da tela (marcado) |
+
+Exemplo — ADC 58 + Lei 14.905/2024, ajuizamento 19/02/2024: `cj_correcao` `"IPCA-E"`, `cj_juros` `"TRD Juros Simples"`,
+`cj_juros_pre_judicial` `true`, `cj_correcoes_combinadas` `[{"indice": "Sem Correção", "a_partir": "2024-02-19"}, {"indice": "IPCA", "a_partir": "2024-08-30"}]`,
+`cj_juros_combinados` `[{"juros": "SELIC (Receita Federal)", "a_partir": "2024-02-19"}, {"juros": "Taxa Legal", "a_partir": "2024-08-30"}]`
+(testado na 2.16 em 16/10/2026). Formato antigo (`cj_outro_indice` "Sim" + `cj_outro_indice_a_partir`) e `cj_fazenda` vão para ignorados;
+`telas.dados-do-calculo.indices_acumulados` (sim/não) também — use `cj_indices_acumulados`.
+
 
 **Não lido ainda** (vai para `ignorados`, o pedido segue): o bloco `verbas` ("próxima fase"), o `cartao-de-ponto` de `arquivos`; as telas
 `salario-familia`, `seguro-desemprego`, `previdencia-privada`, `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`

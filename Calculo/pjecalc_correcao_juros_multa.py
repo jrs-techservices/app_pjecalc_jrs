@@ -4,6 +4,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.common.by import By
 import time
+import json
 import xlrd
 import os
 import gc
@@ -344,6 +345,101 @@ class Correcao(DadosCalculo):
             time.sleep(1)
         print(f'- Aplicar Juros na Fase Pré-Judicial: {"marcado" if marcar else "desmarcado"}')
 
+    # --- combinações do .json (cj_*): várias viradas de índice e de juros (ADC 58 + Lei 14.905/2024) ---
+    def _valor_do_pedido(self, chave):
+        valores = [v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str) and k.strip() == chave]
+        return None if not valores or valor_vazio(valores[0]) else valores[0]
+
+    # a tabela de combinações é a 1ª depois do botão "Adicionar" da seção e antes do limite (a seção seguinte): sem o
+    # limite, com a lista de índices vazia, a "1ª tabela seguinte" seria a dos juros
+    _TABELA = r"""const botao = document.getElementById(arguments[0]), limite = arguments[1] && document.getElementById(arguments[1]);
+        const tabela = botao && [...document.querySelectorAll('table.rich-table')].find(t =>
+            (botao.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+            (!limite || (limite.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_PRECEDING)));"""
+    LINHAS_DA_TABELA = _TABELA + r"""
+        return tabela ? [...tabela.querySelectorAll('tbody tr')].map(r => [...r.querySelectorAll('td')].map(c => c.textContent.trim()).filter(t => t).join(' | '))
+                                                                .filter(t => /\d{2}\/\d{2}\/\d{4}/.test(t)) : [];"""
+    EXCLUIR_PRIMEIRA = _TABELA + r"""
+        const link = tabela && tabela.querySelector('tbody a.linkExcluir');
+        if (link) { link.click(); return true; } return false;"""
+
+    def _erros_na_tela(self, driver):
+        return driver.execute_script("""return [...document.querySelectorAll('.linkErro, .rich-messages-label, .rich-message-label')]
+            .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.textContent.split('//<!')[0].trim()).filter(t => t && !/sucesso/i.test(t));""")
+
+    def _combinar(self, driver, caixa, botao, limite, select, campo_data, rotulo, texto_json):
+        """Deixa a lista de combinações exatamente como o pedido: limpa as linhas que houver (inclusive a que o PJe-Calc
+        cria sozinho no ajuizamento) e inclui as do .json. Lista vazia = sem combinação."""
+        from selenium.webdriver.common.keys import Keys
+        from Tools.pendencias import registrar
+        linhas = json.loads(texto_json)
+        marcada = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, f'formulario:{caixa}')))
+        if not marcada.is_selected():
+            if not linhas:
+                return
+            marcada.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+        for _ in range(20):
+            if not driver.execute_script(self.EXCLUIR_PRIMEIRA, f'formulario:{botao}', limite):
+                break
+            try:
+                WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.ID, 'popup_ok'))).click()
+            except TimeoutException:
+                pass
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+        caixa_atual = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:{caixa}')))
+        if linhas and not caixa_atual.is_selected():
+            # esvaziar a lista pode desmarcar a caixa (e esconder o "Adicionar")
+            caixa_atual.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+        for valor, desde in linhas:
+            Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, f'formulario:{select}')))).select_by_visible_text(valor)
+            self.objTools.aguardar_carregamento(driver)
+            campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:{campo_data}')))
+            campo.click()
+            campo.send_keys(Keys.CONTROL, "a")
+            campo.send_keys(Keys.DELETE)
+            campo.send_keys(desde)
+            campo.send_keys(Keys.TAB)
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:{botao}'))).click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+            erros = self._erros_na_tela(driver)
+            if erros:
+                registrar("Correção, Juros e Multa", f"{rotulo} {valor} a partir de {desde} não incluída: {' | '.join(erros)}")
+        if not linhas:
+            caixa_atual = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:{caixa}')))
+            if caixa_atual.is_selected():
+                caixa_atual.click()
+                self.objTools.aguardar_carregamento(driver)
+        na_tela = driver.execute_script(self.LINHAS_DA_TABELA, f'formulario:{botao}', limite) or []
+        esperado = [f"{valor} | {desde}" for valor, desde in linhas]
+        if na_tela != esperado:
+            registrar("Correção, Juros e Multa", f"{rotulo}: a tela ficou com {na_tela}, o pedido era {esperado}", origem="automacao")
+        else:
+            print(f"- [{rotulo}]: {esperado or 'nenhuma'}")
+
+    def aplicar_correcao_e_juros_do_pedido(self, driver):
+        """Tabela de juros e as combinações de índice e de juros do .json. Sem as chaves, fica o padrão do PJe-Calc."""
+        juros = self._valor_do_pedido('cj_juros')
+        if juros is not None:
+            Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:juros')))).select_by_visible_text(str(juros))
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+            print(f"- Tabela de Juros (pedido): {juros}")
+        indices = self._valor_do_pedido('cj_correcoes_combinadas')
+        if indices is not None:
+            self._combinar(driver, 'combinarOutroIndice', 'addOutroIndice', 'formulario:aplicarJurosFasePreJudicial', 'outroIndiceTrabalhista',
+                           'apartirDeOutroIndiceInputDate', 'combinação de índice', indices)
+        combinados = self._valor_do_pedido('cj_juros_combinados')
+        if combinados is not None:
+            self._combinar(driver, 'combinarOutroJuros', 'addOutroJuros', None, 'outroJuros',
+                           'apartirDeOutroJurosInputDate', 'combinação de juros', combinados)
+
     def acessar_aba_dados_especificos(self, driver):
         WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tabDadosEspecificos_lbl'))).click()
 
@@ -531,6 +627,7 @@ class Correcao(DadosCalculo):
         # Tempo de controle
         time.sleep(self.delayG)
         self.aplicar_juros_pre_judicial(driver)
+        self.aplicar_correcao_e_juros_do_pedido(driver)
         # Salvar
         self.salvar(driver)
         # Aguardar

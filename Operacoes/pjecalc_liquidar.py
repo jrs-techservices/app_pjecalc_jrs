@@ -11,9 +11,16 @@ from Tools.pendencias import interromper
 from Calculo.pjecalc_menu import PjecalcMenu
 
 
+# código do .json (cj_indices_acumulados) → opção da tela Liquidar
+OPCOES_INDICES_ACUMULADOS = {"MES_SUBSEQUENTE_AO_VENCIMENTO": 0, "MES_DO_VENCIMENTO": 1, "MES_SUBSEQUENTE_E_MES_DO_VENCIMENTO": 2}
+
+
 class Liquidar:
 
     delay = 10
+
+    def __init__(self, source=None):
+        self.source = source
 
     def verificacao(self, driver):
 
@@ -53,7 +60,18 @@ class Liquidar:
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.CLASS_NAME, "menuImageLiquidar"))).click()
 
     def acumular_indice(self, driver):
-        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, "formulario:indicesAcumulados:2"))).click()
+        """Índices acumulados: o do .json (cj_indices_acumulados) ou, sem ele, a opção de sempre (mensais no mês
+        subsequente, anuais e rescisórias no mês do vencimento)."""
+        opcao = 2
+        if self.source:
+            from Calculo.leitura_planilha import ler_pje_bd
+            planilha = ler_pje_bd(self.source)
+            pedido = [v for k, v in zip(planilha['IDENTIFICADOR'], planilha['INFORMACAO'])
+                      if isinstance(k, str) and k.strip() == 'cj_indices_acumulados']
+            if pedido and str(pedido[0]).strip() in OPCOES_INDICES_ACUMULADOS:
+                opcao = OPCOES_INDICES_ACUMULADOS[str(pedido[0]).strip()]
+        print(f"- [Liquidar] índices acumulados: opção {opcao}")
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f"formulario:indicesAcumulados:{opcao}"))).click()
 
     def preencher_data(self, driver):
 
@@ -101,7 +119,7 @@ class Liquidar:
 
     def main_liquidar(self, driver):
 
-        objeto_liquidar = Liquidar()
+        objeto_liquidar = self
         objTools = Control()
         objeto_menu = PjecalcMenu()
 
