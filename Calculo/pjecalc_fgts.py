@@ -188,6 +188,40 @@ class FGTS(DadosCalculo):
             valor = booleano_da_planilha(pedido.get(chave)) if pedido.get(chave) != "PADRAO" else None
             if valor is not None:
                 self._marcar(driver, id_campo, valor, rotulo)
+        # pensão alimentícia: a caixa "sobre a multa" só aparece depois da multa e da pensão sobre o FGTS
+        for chave, id_campo, rotulo in (("fgts_pensao_alimenticia", "formulario:incidenciaPensaoAlimenticia", "Pensão alimentícia sobre FGTS"),
+                                        ("fgts_pensao_alimenticia_multa", "formulario:incidenciaPensaoAlimenticiaSobreMulta", "Pensão alimentícia sobre a multa")):
+            valor = booleano_da_planilha(pedido.get(chave))
+            if valor is not None:
+                self._marcar(driver, id_campo, valor, rotulo)
+        self.lancar_saldo_e_saque_do_pedido(driver, pedido)
+
+    def lancar_saldo_e_saque_do_pedido(self, driver, pedido):
+        """Quadro "Saldo e/ou Saque" (data DD/MM/AAAA + valor + Adicionar) e, depois das linhas, "Deduzir do FGTS" — a caixa
+        fica desabilitada enquanto o quadro está vazio e vale para o quadro inteiro (o PJe-Calc grava as linhas como DEPOSITO)."""
+        import json
+        linhas = json.loads(pedido['fgts_saldo_saque']) if pedido.get('fgts_saldo_saque') else []
+        for data, valor in linhas:
+            for id_campo, texto in (('formulario:competenciaInputDate', data), ('formulario:valor', f"{float(valor):.2f}".replace(".", ","))):
+                campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo)))
+                campo.click()
+                campo.send_keys(Keys.CONTROL, "a")
+                campo.send_keys(Keys.DELETE)
+                campo.send_keys(texto)
+                campo.send_keys(Keys.TAB)
+                time.sleep(0.5)
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:cmdIncluir'))).click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+            erros = driver.execute_script("""return [...document.querySelectorAll('.linkErro, .rich-messages-label, .rich-message-label')]
+                .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.textContent.split('//<!')[0].trim()).filter(t => t && !/sucesso/i.test(t));""")
+            if erros:
+                registrar("FGTS", f"saldo/saque de {data} (R$ {valor}) não incluído: {' | '.join(erros)}")
+            else:
+                print(f"- [FGTS] saldo/saque: {data} R$ {valor}")
+        deduzir = booleano_da_planilha(pedido.get('fgts_deduzir'))
+        if deduzir is not None:
+            self._marcar(driver, "formulario:deduzirDoFGTS", deduzir, "Deduzir do FGTS")
 
     def aplicar_aliquota_do_pedido(self, driver):
         """A alíquota é por ocorrência: 8% é o padrão; 2% vale o contrato todo, por Ocorrências › Regerar."""

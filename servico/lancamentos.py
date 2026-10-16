@@ -948,6 +948,50 @@ def _fgts_completo(r, fgts):
         # sem a chave, fica o padrão da tela (marcado); a automação antiga o desmarcava
         r.valores["fgts_excluir_aviso_multa"] = "PADRAO"
 
+    # pensão alimentícia: a caixa "sobre a multa" só aparece com a multa e a pensão sobre o FGTS marcadas
+    pensao = booleano("fgts_pensao_alimenticia", "fgts_pensao_alimenticia")
+    if "fgts_pensao_alimenticia_multa" in fgts:
+        if fgts["fgts_pensao_alimenticia_multa"] is True and not (multa and pensao):
+            r.erro(f"{base}.fgts_pensao_alimenticia_multa", True,
+                   "só com fgts_calcular_multa = true e fgts_pensao_alimenticia = true (a tela só mostra a caixa assim)")
+        elif multa and pensao:
+            booleano("fgts_pensao_alimenticia_multa", "fgts_pensao_alimenticia_multa")
+        else:
+            r.ignorar(f"{base}.fgts_pensao_alimenticia_multa", "false sem multa ou sem pensão: a tela nem mostra a caixa")
+
+    # quadro "Saldo e/ou Saque" (raiz fgtsSaldoSaque) e "Deduzir do FGTS" (uma caixa para o quadro inteiro)
+    deduzir = booleano("fgts_deduzir", "fgts_deduzir")
+    linhas_bloco = r.dados.get("fgtsSaldoSaque")
+    linhas = []
+    if linhas_bloco not in (None, []):
+        if not isinstance(linhas_bloco, list) or not all(isinstance(i, dict) for i in linhas_bloco):
+            r.erro("fgtsSaldoSaque", linhas_bloco, "deve ser uma lista de { data, valor }")
+        else:
+            admissao = r.valores.get("data_admissao")
+            for n, item in enumerate(linhas_bloco):
+                onde = f"fgtsSaldoSaque[{n}]"
+                if set(item) - {"data", "valor"}:
+                    r.erro(onde, item, f"campo(s) não reconhecido(s): {', '.join(sorted(set(item) - {'data', 'valor'}))}")
+                    continue
+                serial = r.data(f"{onde}.data", item.get("data"))
+                valor = numero_da_planilha(item.get("valor"))
+                if valor is None or valor <= 0:
+                    r.erro(f"{onde}.valor", item.get("valor"), "valor em reais maior que zero")
+                elif serial is not None and isinstance(admissao, int) and serial < admissao:
+                    r.erro(f"{onde}.data", item.get("data"), "antes da admissão")
+                elif serial is not None:
+                    linhas.append([f"{ORIGEM_EXCEL + timedelta(days=serial):%d/%m/%Y}", float(valor)])
+    incidencia = r.valores.get("fgts_incidencia_multa")
+    usa_saldo = multa and incidencia not in (None, "SOBRE_O_TOTAL_DEVIDO")
+    if linhas and not deduzir and not usa_saldo:
+        r.erro("fgtsSaldoSaque", linhas_bloco, "o PJe-Calc só aceita o quadro como base da multa (incidência com saldo/saque) "
+                                               "ou com fgts_deduzir = true")
+    elif deduzir and not linhas and not any(e["campo"].startswith("fgtsSaldoSaque") for e in r.erros):
+        r.erro(f"{base}.fgts_deduzir", True, "sem linhas em fgtsSaldoSaque a tela deixa a caixa desabilitada")
+    elif linhas:
+        r.valores["fgts_saldo_saque"] = json.dumps(linhas)
+        r.usados.update({"fgtsSaldoSaque[].data", "fgtsSaldoSaque[].valor"})
+
 
 ALIQUOTAS_SEGURADO = ("Segurado Empregado", "Empregado Doméstico", "Fixa")
 ALIQUOTAS_EMPREGADOR = ("Por Atividade Econômica", "Por Período", "Fixa")
@@ -1514,7 +1558,7 @@ def interpretar(caminho):
     interpretar_verbas(r)
     # ignorados por item (honorarios[0].dataVencimento) já contam como tratados
     tratados = {re.sub(r"\[\d+\]", "[]", k) for k in r.ignorados}
-    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo")}):
+    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo", "fgtsSaldoSaque")}):
         if folha and folha not in META and folha not in r.usados and folha not in tratados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r

@@ -236,6 +236,16 @@ Exemplo — ADC 58 + Lei 14.905/2024, ajuizamento 19/02/2024: `cj_correcao` `"IP
 | `fgts_incidencia_multa` | lista do §3 (`Sobre devido`, …, `Sobre devido - saldo e/ou saque`) | só com multa e valor Calculado |
 | `fgts_valor_multa_informado` | número (reais) | obrigatório com `Informado`; proibido nos outros casos |
 | `fgts_multa_467` · `fgts_excluir_aviso_multa` | `true`/`false` | só com multa; sem `fgts_excluir_aviso_multa` fica o padrão da tela (marcado) |
+| `fgts_compor_principal` | `"Sim"` · `"Não"` | botão Compor Principal |
+| `fgts_pensao_alimenticia` | `true`/`false` | Pensão Alimentícia sobre FGTS |
+| `fgts_pensao_alimenticia_multa` | `true`/`false` | só com multa **e** `fgts_pensao_alimenticia = true` (a tela só mostra a caixa assim); `false` fora disso vai para ignorados |
+| `fgts_deduzir` | `true`/`false` | "Deduzir do FGTS": **uma caixa para o quadro inteiro**, habilitada só com linhas em `fgtsSaldoSaque`; `true` sem linhas → recusado |
+
+Quadro "Saldo e/ou Saque" na raiz: `"fgtsSaldoSaque": [{ "data": "AAAA-MM-DD", "valor": 1000.00 }, …]` — data a partir da admissão
+(a tela aceita depois da demissão), valor > 0. O PJe-Calc só aceita o quadro como **base da multa** (incidência com saldo/saque) ou com
+`fgts_deduzir = true` ("O Saldo e/ou Saque só pode ser informado quando estiver sendo considerado como base da multa ou como dedução do
+FGTS"): fora disso → recusado na porta. No .PJC cada linha é uma `OperacaoDeFgts` com `tipoDeOperacaoDoFgts = DEPOSITO` (a tela não
+escolhe o tipo; testado com Deduzir marcado e desmarcado).
 
 ### `telas.contribuicao-social` e `contribuicaoSocial`: a tela inteira (implementado em 14/10/2026)
 
