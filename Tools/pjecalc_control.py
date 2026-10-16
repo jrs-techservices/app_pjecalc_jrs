@@ -54,7 +54,7 @@ class Control:
             for f in os.listdir(dirSystemTemp):
                 try:
                     os.remove(os.path.join(dirSystemTemp, f))
-                except PermissionError:
+                except (PermissionError, FileNotFoundError):  # outro processo pode apagar o arquivo antes
                     continue
         except:
             pass
@@ -64,14 +64,14 @@ class Control:
 
             try:
                 os.remove(os.path.join(dirUserTemp, g))
-            except PermissionError:
+            except (PermissionError, FileNotFoundError):  # outro processo pode apagar o arquivo antes
                 continue
 
         try:
             for h in os.listdir(dirUserRecent):
                 try:
                     os.remove(os.path.join(dirUserTemp, h))
-                except PermissionError:
+                except (PermissionError, FileNotFoundError):  # outro processo pode apagar o arquivo antes
                     continue
         except:
             pass
