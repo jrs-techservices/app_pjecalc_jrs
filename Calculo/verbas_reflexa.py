@@ -24,8 +24,8 @@ class VerbaReflexa(Verbas):
         self.planilha_tbreflexa = pd.read_excel(source, sheet_name="TBREFLEXA")
 
 
-    def click_parametrizarReflexo(self, driver, indice):
-        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:listagem:0:listaReflexo:{indice}:j_id573'))).click()
+    def click_parametrizarReflexo(self, driver, indice, indice_verba=0):
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, f'formulario:listagem:{indice_verba}:listaReflexo:{indice}:j_id573'))).click()
 
 
     def click_btnManual(self, driver):

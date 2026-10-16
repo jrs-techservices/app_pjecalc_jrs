@@ -31,6 +31,7 @@ class Verbas:
         self.hrinicialLog = ""
         self.hrfinalLog = ""
         self.objTools = Control()
+        self.indice_verba_expandida = 0  # linha da verba cujos reflexos estão abertos (expandir_verba_reflexa)
         self.planilha_base = pd.read_excel(source, sheet_name="TBVERBABD")
         self.planilha_basecalculo_exp_hs = pd.read_excel(source, sheet_name="DEVIDOBD_EXP")
         self.planilha_basecalculovalorpago_exp_hs = pd.read_excel(source, sheet_name="PAGOBD_EXP")
@@ -794,7 +795,8 @@ class Verbas:
         try:
 
             if WebDriverWait(driver, 2).until(EC.visibility_of_element_located((By.ID, "formulario:valorInformadoDoDevido"))):
-                val = f"{valor:.2f}"
+                # mesmo formato dos outros valores da tela (vírgula decimal); a máscara do campo fica só com os dígitos
+                val = f"{float(valor):.2f}".replace(".", ",")
                 WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.NAME, 'formulario:valorInformadoDoDevido'))).send_keys(val)
 
         except TimeoutException:
@@ -1339,7 +1341,7 @@ class Verbas:
         # //td[@class="rich-table-cell colunaReflexo"]//input
         if valor == "S":
             try:
-                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//tbody[@id="formulario:listagem:0:listaReflexo:tb"]//tr')))
+                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
                 print(f"- [QTD_ELEMENTOS_LOCALIZADOS_TB]: {len(elementos)}")
                 for item in elementos:
                     try:
@@ -1404,7 +1406,7 @@ class Verbas:
         print("- VERBA REFLEXA: ", verba_principal)
 
         try:
-            elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//tbody[@id="formulario:listagem:0:listaReflexo:tb"]//tr')))
+            elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
             print(f"- [QTD_ELEMENTOS_LOCALIZADOS_TB]: {len(elementos)}")
             for indice, item in enumerate(elementos):
                 try:
@@ -1475,7 +1477,7 @@ class Verbas:
 
         if valor == "S":
             try:
-                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//tbody[@id="formulario:listagem:0:listaReflexo:tb"]//tr')))
+                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
                 print(f"- [QTD_ELEMENTOS_LOCALIZADOS_TB]: {len(elementos)}")
                 for item in elementos:
                     try:
@@ -1543,7 +1545,7 @@ class Verbas:
 
         if valor == "S":
             try:
-                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//tbody[@id="formulario:listagem:0:listaReflexo:tb"]//tr')))
+                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
                 print(f"- [QTD_ELEMENTOS_LOCALIZADOS_TB]: {len(elementos)}")
                 for item in elementos:
                     try:
@@ -1608,7 +1610,7 @@ class Verbas:
 
         if valor == "S":
             try:
-                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//tbody[@id="formulario:listagem:0:listaReflexo:tb"]//tr')))
+                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
                 print(f"- [QTD_ELEMENTOS_LOCALIZADOS_TB]: {len(elementos)}")
                 for item in elementos:
                     try:
@@ -1670,7 +1672,7 @@ class Verbas:
 
         if valor == "S":
             try:
-                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, '//tbody[@id="formulario:listagem:0:listaReflexo:tb"]//tr')))
+                elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
                 print(f"- [QTD_ELEMENTOS_LOCALIZADOS_TB]: {len(elementos)}")
                 for item in elementos:
                     try:
@@ -1985,6 +1987,7 @@ class Verbas:
 
         s_loop = True
         indice = 0
+        self.indice_verba_expandida = 0  # não achou pelo nome: fica a 1ª linha, como antes
 
         # if valor.islower():
         #     valor.upper()
@@ -2001,6 +2004,8 @@ class Verbas:
                     print("- PARÂMETRO: ", valor)
                     if elemento_verba_principal.text == valor:
                         WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.ID, f'formulario:listagem:{indice}:divDestinacoes'))).click()
+                        # os marcar_sflreflexo* leem os reflexos desta linha (não da 1ª da lista)
+                        self.indice_verba_expandida = indice
                         s_loop = False
 
             except TimeoutException:
@@ -2685,7 +2690,7 @@ class Verbas:
 
                             objVerbaReflexa = VerbaReflexa(self.sourceFileExcel)
                             # - Etapa 01
-                            objVerbaReflexa.click_parametrizarReflexo(driver, indice_ferias_reflexa)
+                            objVerbaReflexa.click_parametrizarReflexo(driver, indice_ferias_reflexa, self.indice_verba_expandida)
                             self.objTools.aguardar_carregamento(driver)
                             sleep(0.5)
                             objVerbaReflexa.modificar_snmdescricaoverba(driver, "FÉRIAS")
