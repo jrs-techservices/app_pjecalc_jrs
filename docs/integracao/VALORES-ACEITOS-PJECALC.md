@@ -645,10 +645,11 @@ Vocabulário único: **o código do XML do `.PJC`**. Valor fora da lista → `40
 | `ocorrenciaPagamento` | `MENSAL` · `DEZEMBRO` · `DESLIGAMENTO` · `PERIODO_AQUISITIVO` | |
 | `incidencias` | `{ inss, irpf, fgts, previdenciaPrivada, pensaoAlimenticia }` booleanos | |
 | `jurosSumula439` · `comporPrincipal` · `zerarValorNegativo` · `dobrarValor` | booleanos | |
-| `excluirFaltaJustificada` · `excluirFaltaNaoJustificada` · `excluirFeriasGozadas` | booleanos | |
+| `excluirFaltaJustificada` · `excluirFaltaNaoJustificada` · `excluirFeriasGozadas` | booleanos | exclusões do Valor Devido; ausentes = padrão do Expresso (nas horas extras, as três marcadas) |
 | `geraReflexo` · `gerarPrincipal` | `DEVIDO` · `DIFERENCA` | |
 | `periodo` | `{ inicio, termino }` em `AAAA-MM-DD` | |
-| `valorDevido` · `proporcionalidade` | número · booleano | só com `valor` = `INFORMADO` (aí `valorDevido` é obrigatório) |
+| `valorDevido` | número | só com `valor` = `INFORMADO` (aí é obrigatório) |
+| `proporcionalidade` | booleano | "Proporcionalizar" do Valor Devido (o devido no mês incompleto), com `INFORMADO` ou `CALCULADO`; ausente = padrão do Expresso |
 | `baseTabelada` | `HISTORICO_SALARIAL` · `MAIOR_REMUNERACAO` · `PISO_SALARIAL` · `SALARIO_MINIMO` · `VALE_TRANSPORTE` | só com `CALCULADO` |
 | `bases[]` | `{ tipo: HISTORICO \| VERBA, referencia, proporcionalizar }` | `HISTORICO`: `referencia` = nome de um histórico do **mesmo pedido** (título da 2ª coluna do `.csv`) — **se não existir, o pedido é recusado** (o PJe-Calc zeraria a verba em silêncio). `VERBA`: `referencia` = `id` de outra verba do pedido |
 | `divisor` | `{ tipo: OUTRO_VALOR \| CARGA_HORARIA \| DIAS_UTEIS \| IMPORTADA_DO_CARTAO, valor }` | **obrigatório com `CALCULADO`** (a tela exige); `valor` obrigatório com `OUTRO_VALOR` |
