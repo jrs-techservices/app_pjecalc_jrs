@@ -142,7 +142,10 @@ class VerbaReflexa(Verbas):
         del pk
 
 
-    def functon_main_parcelaReflexa(self, driver, indice, iidverbajrs, snmverbaexpressopjecalc):
+    def functon_main_parcelaReflexa(self, driver, indice, iidverbajrs, snmverbaexpressopjecalc, manual=True):
+        """Preenche o formulário do reflexo com a linha da TBREFLEXA. manual=True: cria o reflexo (botão Manual) e
+        escolhe a verba base; manual=False: o formulário já aberto é o do reflexo do Expresso (Parametrizar), que já
+        tem a base."""
 
         stpvalor = ""
         sflincidenciainss = ""
@@ -151,9 +154,10 @@ class VerbaReflexa(Verbas):
         sflincidenciaprevprivada = ""
         sflincidenciapensao = ""
 
-        self.click_btnManual(driver)
-        self.objTools.aguardar_carregamento(driver)
-        sleep(self.delayG)
+        if manual:
+            self.click_btnManual(driver)
+            self.objTools.aguardar_carregamento(driver)
+            sleep(self.delayG)
 
         vl = indice[0]
         for vc in self.planilha_tbreflexa.columns:
@@ -162,6 +166,10 @@ class VerbaReflexa(Verbas):
 
             result = self.verificar_valorTb(dado)
             if result is False:
+                continue
+
+            # no reflexo do Expresso a tela trava Valor (Calculado) e Tipo (Reflexa)
+            if not manual and vc in ('STPVALOR', 'STPTIPOVERBA'):
                 continue
 
             if vc == 'SNMDESCRICAOVERBAREFLEXA':
@@ -409,6 +417,8 @@ class VerbaReflexa(Verbas):
                 continue
 
 
+        if not manual:
+            return
         # self.selecionar_verba(driver, snmverbaexpressopjecalc)
         self.selecionar_verbaPrincipal(driver, iidverbajrs, snmverbaexpressopjecalc)
         self.click_btnIncluirVerba(driver)

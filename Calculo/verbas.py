@@ -1242,6 +1242,84 @@ class Verbas:
         del valor
 
     # SFLREFLEXO13TERCEIRO
+    # Reflexos que o Expresso pode oferecer na lista da verba: coluna da planilha → início do nome na lista
+    PREFIXOS_REFLEXO_DO_EXPRESSO = {
+        "SFLREFLEXO13TERCEIRO": ("13º SALÁRIO SOBRE ",),
+        "SFLREFLEXOFERIAS": ("FÉRIAS + 1/3 SOBRE ",),
+        "SFLREFLEXOAVISO": ("AVISO PRÉVIO SOBRE ",),
+        "SFLREFLEXOREPOUSO": ("REPOUSO SEMANAL REMUNERADO E FERIADO SOBRE ", "REPOUSO SEMANAL REMUNERADO SOBRE "),
+        "SFLREFLEXOART477CLT": ("MULTA DO ARTIGO 477 DA CLT SOBRE ",),
+        "SFLREFLEXOART467CLT": ("MULTA DO ARTIGO 467 DA CLT SOBRE ",),
+    }
+    LINHA_DO_REFLEXO = r"""const nomes = arguments[0];
+        for (const span of document.querySelectorAll('tbody[id$=":listaReflexo:tb"] td.colunaReflexo span')) {
+            if (!nomes.includes(span.textContent.trim())) continue;
+            // a linha tem duas caixas: a de seleção (sem id) e a do reflexo ativo (id ...:ativo)
+            const linha = span.closest('tr'), caixa = linha.querySelector('input[id$=":ativo"]');
+            const corpo = linha.closest('tbody');
+            if (!(corpo.offsetWidth || corpo.offsetHeight)) {
+                const lista = document.getElementById('formulario:listagem:tb');
+                const verba = lista && [...lista.rows].find(r => r.contains(corpo));
+                const botao = verba && verba.querySelector('.linkDestinacoes');
+                if (botao) botao.click();
+                return 'expandir';
+            }
+            const link = linha.querySelector('a.linkParametrizar');
+            return {ativo: !!(caixa && caixa.checked), link: link ? link.id : null};
+        }
+        return null;"""
+
+    def parametrizar_reflexos_do_expresso(self, driver, iidverbajrs, snmdescricaoverba, marcados):
+        """reflexosManuais do .json para reflexo que o Expresso já oferece: o robô liga o do Expresso (marcar_*) e aqui
+        abre o "Parametrizar" dele e aplica a linha da TBREFLEXA (nome, assunto CNJ, parcela, incidências, divisor,
+        quantidade…), sem criar outro. Só com a planilha do .json (coluna FKVERBAPRINCIPAL)."""
+        from Calculo.verbas_reflexa import VerbaReflexa
+        from Tools.pendencias import registrar
+        objVerbaReflexa = VerbaReflexa(self.sourceFileExcel)
+        tabela = objVerbaReflexa.planilha_tbreflexa
+        if 'FKVERBAPRINCIPAL' not in tabela.columns:
+            return
+        for coluna, prefixos in self.PREFIXOS_REFLEXO_DO_EXPRESSO.items():
+            if marcados.get(coluna) != 'S':
+                continue
+            linhas = tabela.index[(tabela['SNMVERBAREFLEXA'] == coluna) & (tabela['FKVERBAPRINCIPAL'] == iidverbajrs)].tolist()
+            if not linhas:
+                continue
+            nomes = [(p + snmdescricaoverba).upper() for p in prefixos]
+            achado = None
+            for _ in range(3):
+                achado = driver.execute_script(self.LINHA_DO_REFLEXO, nomes)
+                if achado != 'expandir':
+                    break
+                self.objTools.aguardar_carregamento(driver)
+                sleep(1)
+            if not isinstance(achado, dict):
+                continue  # o Expresso não oferece: o reflexo manual já foi criado pelo caminho de sempre
+            if not achado['ativo'] or not achado['link']:
+                registrar("Verbas", f"reflexo {nomes[0]} não ficou ativo; os parâmetros do pedido não foram aplicados", origem="automacao")
+                continue
+            print(f"- [REFLEXO DO EXPRESSO] parametrizando {nomes[0]} com os parâmetros do pedido")
+            driver.execute_script("arguments[0].click();", driver.find_element(By.ID, achado['link']))
+            self.objTools.aguardar_carregamento(driver)
+            sleep(self.delayG if hasattr(self, 'delayG') else 2)
+            try:
+                objVerbaReflexa.functon_main_parcelaReflexa(driver, linhas, iidverbajrs, snmdescricaoverba, manual=False)
+            except Exception as erro:
+                # o reflexo do Expresso fica como o Expresso o criou; o cálculo segue
+                registrar("Verbas", f"parâmetros do pedido não aplicados em {nomes[0]} (fica o padrão do Expresso): "
+                                    f"{str(erro).splitlines()[0][:150] if str(erro).strip() else type(erro).__name__}", origem="automacao")
+                try:
+                    WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:cancelar'))).click()
+                    self.objTools.aguardar_carregamento(driver)
+                    sleep(2)
+                except Exception:
+                    pass
+                continue
+            self.selecionar_btnSalvarOperacao(driver)
+            self.objTools.aguardar_carregamento(driver)
+            sleep(2)
+            self.verificacao_2_new_parcelaReflexa(driver)
+
     def marcar_sflreflexo13terceiro(self, driver, valor, snmdescricaoverba):
 
         # indice = 0
@@ -2760,6 +2838,12 @@ class Verbas:
                             gc.collect(generation=0)
                             gc.collect(generation=1)
                             gc.collect(generation=2)
+
+                        # reflexosManuais do .json sobre reflexo que o Expresso oferece: aplica os parâmetros do pedido nele
+                        self.parametrizar_reflexos_do_expresso(driver, iidverbajrs, snmdescricaoverba, {
+                            "SFLREFLEXO13TERCEIRO": sflreflexo13terceiro, "SFLREFLEXOFERIAS": sflreflexoferias,
+                            "SFLREFLEXOAVISO": sflreflexoaviso, "SFLREFLEXOREPOUSO": sflreflexorepouso,
+                            "SFLREFLEXOART477CLT": sflreflexoart477clt, "SFLREFLEXOART467CLT": sflreflexoart467clt})
 
                 sleep(1.5)
 

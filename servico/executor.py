@@ -2,6 +2,8 @@
 """Roda uma execução chamando os fluxos atuais da automação (modos 0, 1 e 2) sem alterá-los."""
 import json
 import os
+import re
+from collections import deque
 import sqlite3
 import sys
 import threading
@@ -22,6 +24,27 @@ class AlertaDaAutomacao(BaseException):
     """Herda de BaseException para atravessar os `except Exception` dos fluxos e parar a rodada."""
 
 
+# linhas que não dizem em que passo o robô estava (stacktrace do Selenium, a própria exceção, pontinhos de espera)
+_RUIDO = re.compile(r"chrome://|^Stacktrace|^RemoteError|^WebDriverError|^NoSuchElementError|^Message:|\[except\] Erro \[Full\]|"
+                    r"\[servico\]|^[.\s]*$")
+
+
+def explicar_alerta(texto, passos):
+    """'Aviso: Message: ' (exceção do Selenium sem texto) não diz nada: completa com o tipo e os últimos passos do log."""
+    if not re.search(r"Message:\s*(Stacktrace:|$)", str(texto).strip()):
+        return texto
+    if "NoSuchElement" in str(texto) or "TimeoutException" in str(texto):
+        tipo = "elemento da tela não encontrado (tempo esgotado)"
+    elif "StaleElement" in str(texto):
+        tipo = "a tela mudou enquanto o robô a usava"
+    elif "ElementNotInteractable" in str(texto) or "not reachable" in str(texto):
+        tipo = "elemento da tela desabilitado ou escondido"
+    else:
+        tipo = "erro do navegador sem mensagem"
+    contexto = " → ".join(passos) if passos else "sem passos registrados"
+    return f"Aviso: {tipo}. Últimos passos: {contexto}"
+
+
 class _CapturaDeSaida:
     """Copia para o log da execução as linhas impressas pela thread do worker."""
 
@@ -32,6 +55,7 @@ class _CapturaDeSaida:
         self._buffer = ""
         self._seq = 0
         self.pendencias = []
+        self.ultimos_passos = deque(maxlen=4)  # contexto para alerta com mensagem vazia
 
     def write(self, texto):
         self.original.write(texto)
@@ -55,6 +79,8 @@ class _CapturaDeSaida:
         pendencia = ler_linha(linha) if linha else None
         if pendencia and pendencia not in self.pendencias:
             self.pendencias.append(pendencia)
+        if linha and not _RUIDO.search(linha):
+            self.ultimos_passos.append(linha.lstrip("-. ").strip()[:160])
         if not linha or self._seq >= config.LIMITE_LOG_POR_EXECUCAO:
             return
         self._seq += 1
@@ -217,7 +243,7 @@ def executar(execucao_id):
     alertas = []
 
     def interceptar_alerta(text="", title="", button="OK", **_):
-        alertas.append(f"{title}: {text}" if title else str(text))
+        alertas.append(explicar_alerta(f"{title}: {text}" if title else str(text), list(saida.ultimos_passos)))
         print(f"- [servico] alerta da automação: {alertas[-1]}")
         raise AlertaDaAutomacao()
 
