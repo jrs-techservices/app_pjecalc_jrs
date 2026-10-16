@@ -123,8 +123,10 @@ def _preparar_lancamentos(registro, execucao_id):
     resumo = interpretacao.resumo()
     banco.atualizar(execucao_id, lancamentos_resumo=json.dumps(resumo, ensure_ascii=False))
     print(f"- [lançamentos] {registro['lancamentos']}: {len(resumo['usados'])} campo(s) usado(s), {len(resumo['ignorados'])} ignorado(s)")
-    for campo, motivo in resumo["ignorados"].items():
-        print(f"- [lançamentos] ignorado: {campo} ({motivo})")
+    for tela, campos in resumo.get("ignorados_por_tela", {}).items():
+        print(f"- [lançamentos] ignorados em {tela} ({len(campos)}):")
+        for campo, motivo in campos.items():
+            print(f"- [lançamentos]     {campo} ({motivo})")
     for aviso in resumo["avisos"]:
         print(f"- [AVISO][lançamentos]: {aviso}")
 

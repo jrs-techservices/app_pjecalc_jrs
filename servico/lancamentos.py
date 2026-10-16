@@ -75,6 +75,39 @@ def _sim_nao(valor):
     return "Sim" if valor else "Não"
 
 
+# caminho do .json → tela do PJe-Calc (para relatar os ignorados tela a tela; a ordem importa: o 1º prefixo que casar vale)
+TELA_DO_CAMINHO = [
+    (("dadosDoCalculo", "telas.dados-do-calculo", "advogados", "parametrosDoCalculo", "processo"), "Dados do Cálculo"),
+    (("arquivos.faltas",), "Faltas"), (("arquivos.ferias",), "Férias"), (("arquivos.historico-salarial",), "Histórico Salarial"),
+    (("arquivos.cartao-de-ponto", "telas.cartao-de-ponto"), "Cartão de Ponto"),
+    (("verbas", "reflexosManuais"), "Verbas"),
+    (("telas.salario-familia",), "Salário-família"), (("telas.seguro-desemprego",), "Seguro-desemprego"),
+    (("fgts", "telas.fgts", "fgtsSaldoSaque"), "FGTS"),
+    (("telas.contribuicao-social", "contribuicaoSocial", "arquivos.base-inss"), "Contribuição Social"),
+    (("telas.previdencia-privada",), "Previdência Privada"), (("telas.pensao-alimenticia",), "Pensão Alimentícia"),
+    (("telas.imposto-de-renda",), "Imposto de Renda"),
+    (("multas", "telas.multas"), "Multas e Indenizações"), (("honorarios", "telas.honorarios"), "Honorários"),
+    (("custas", "telas.custas-judiciais"), "Custas Judiciais"), (("telas.correcao-juros-multa",), "Correção, Juros e Multa"),
+    (("dataLiquidacao",), "Liquidar"),
+]
+
+
+def tela_do_caminho(caminho):
+    for prefixos, tela in TELA_DO_CAMINHO:
+        if any(caminho == p or caminho.startswith((p + ".", p + "[")) for p in prefixos):
+            return tela
+    return "Outros"
+
+
+def ignorados_por_tela(ignorados):
+    """{tela: {campo: motivo}} na ordem do fluxo do robô — para a conferência saber que "não conferível" é contrato pendente."""
+    ordem = [t for _, t in TELA_DO_CAMINHO] + ["Outros"]
+    agrupado = {}
+    for campo, motivo in sorted(ignorados.items()):
+        agrupado.setdefault(tela_do_caminho(campo), {})[campo] = motivo
+    return {t: agrupado[t] for t in ordem if t in agrupado}
+
+
 class Interpretacao:
 
     def __init__(self, dados):
@@ -139,6 +172,7 @@ class Interpretacao:
             "contrato": self.dados.get("contrato"),
             "usados": sorted(self.usados),
             "ignorados": dict(sorted(self.ignorados.items())),
+            "ignorados_por_tela": ignorados_por_tela(self.ignorados),
             "avisos": self.avisos,
         }
 
