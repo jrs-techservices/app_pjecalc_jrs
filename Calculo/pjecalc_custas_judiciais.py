@@ -1,4 +1,6 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, registrar
+from selenium.webdriver.common.keys import Keys
+import json
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.common.alert import Alert
@@ -12,7 +14,7 @@ import os
 import gc
 # from Calculo.pjecalc_dados_calculo import DadosCalculo
 from Tools.pjecalc_control import Control
-from Calculo.leitura_planilha import numero_da_planilha, data_da_planilha, ler_pje_bd
+from Calculo.leitura_planilha import numero_da_planilha, data_da_planilha, ler_pje_bd, valor_vazio
 
 
 class Custas:
@@ -438,6 +440,81 @@ class Custas:
         # Nova Função de verificação
         self.verificacao_cnae(driver)
 
+    # --- campos do .json além das custas do reclamado (chaves custas_*) ---
+    def _do_pedido(self, chave):
+        valores = [v for k, v in zip(self.planilha_base['IDENTIFICADOR'], self.planilha_base['INFORMACAO'])
+                   if isinstance(k, str) and k.strip() == chave]
+        return None if not valores or valor_vazio(valores[0]) else valores[0]
+
+    def _radio(self, driver, nome, valor):
+        opcoes = driver.find_elements(By.CSS_SELECTOR, f"input[name='formulario:{nome}']")
+        alvo = next((o for o in opcoes if o.get_attribute("value") == valor), None)
+        if alvo is None:
+            registrar("Custas Judiciais", f"opção {valor} de {nome} não encontrada na tela", origem="automacao")
+            return
+        if not alvo.is_selected():
+            alvo.click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+
+    def _digitar(self, driver, id_campo, texto):
+        campo = WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, id_campo)))
+        campo.click()
+        campo.send_keys(Keys.CONTROL, "a")
+        campo.send_keys(Keys.DELETE)
+        campo.send_keys(texto)
+        campo.send_keys(Keys.TAB)
+        time.sleep(0.5)
+
+    @staticmethod
+    def _data(valor):
+        return valor.strftime("%d/%m/%Y") if hasattr(valor, "strftime") else str(valor).strip()
+
+    @staticmethod
+    def _reais(valor):
+        return f"{float(valor):.2f}".replace(".", ",")
+
+    def aplicar_custas_devidas_do_pedido(self, driver):
+        base = self._do_pedido('custas_base')
+        if base:
+            Select(WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:baseParaCustasCalculadas')))).select_by_value(str(base))
+            self.objTools.aguardar_carregamento(driver)
+            print(f"- [Custas] base das calculadas: {base}")
+        reclamante = self._do_pedido('custas_rcte_tipo')
+        if reclamante:
+            self._radio(driver, 'tipoDeCustasDeConhecimentoDoReclamante', str(reclamante))
+            print(f"- [Custas] reclamante: {reclamante}")
+        cobranca = self._do_pedido('custas_rcte_cobranca')
+        if cobranca:
+            self._radio(driver, 'tipoCobrancaReclamante', str(cobranca))
+        if reclamante == 'INFORMADA':
+            self._digitar(driver, 'formulario:dataVencimentoConhecimentoDoReclamanteInputDate', self._data(self._do_pedido('custas_rcte_vcto')))
+            self._digitar(driver, 'formulario:valorDeConhecimentoDoReclamante', self._reais(self._do_pedido('custas_rcte_valor')))
+        liquidacao = self._do_pedido('custas_liq_tipo')
+        if liquidacao:
+            self._radio(driver, 'tipoDeCustasDeLiquidacao', str(liquidacao))
+            print(f"- [Custas] liquidação: {liquidacao}")
+        if liquidacao == 'INFORMADA':
+            self._digitar(driver, 'formulario:dataVencimentoCustasDeLiquidacaoInputDate', self._data(self._do_pedido('custas_liq_vcto')))
+            self._digitar(driver, 'formulario:valorCustasDeLiquidacao', self._reais(self._do_pedido('custas_liq_valor')))
+
+    def lancar_recolhidas_do_reclamante(self, driver):
+        """Lista "Reclamante" da aba Custas Recolhidas (vencimento + valor + Adicionar). Não salva: o salvar é o da tela."""
+        linhas = json.loads(self._do_pedido('custas_pagas_rcte') or '[]')
+        for vencimento, valor in linhas:
+            self._digitar(driver, 'formulario:dataVencimentoRTInputDate', vencimento)
+            self._digitar(driver, 'formulario:valorRT', self._reais(valor))
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:cmdIncluirRT'))).click()
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+            erros = driver.execute_script("""return [...document.querySelectorAll('.linkErro, .rich-messages-label, .rich-message-label')]
+                .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.textContent.split('//<!')[0].trim()).filter(t => t && !/sucesso/i.test(t));""")
+            if erros:
+                registrar("Custas Judiciais", f"custa recolhida pelo reclamante de {vencimento} (R$ {valor}) não incluída: {' | '.join(erros)}")
+            else:
+                print(f"- [Custas] recolhida pelo reclamante: {vencimento} R$ {valor}")
+        return len(linhas)
+
     def main_custas(self, driver):
 
         self.acessar_custas_judiciais(driver)
@@ -448,14 +525,23 @@ class Custas:
         self.definir_correcao_monetaria_custas_reclamado_v3_34(driver)
         # Tempo de controle
         time.sleep(self.delayG)
+        self.aplicar_custas_devidas_do_pedido(driver)
 
         # Sem a chave (ou vazia), não há custas recolhidas a lançar.
         result_qtd = numero_da_planilha(self.verificar_quantidadeCustasRecolhidas()) or 0
-        if result_qtd > 0:
+        recolhidas_reclamante = self._do_pedido('custas_pagas_rcte')
+        if result_qtd > 0 or recolhidas_reclamante:
             self.acessar_aba_custas_recolhidas(driver)
             # Tempo de controle
             time.sleep(self.delayG)
+            self.lancar_recolhidas_do_reclamante(driver)
+        if result_qtd > 0:
             self.preencher_custas_recolhidas(driver)
+        elif recolhidas_reclamante:
+            self.salvar_operacao(driver)
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(1)
+            self.verificacao_cnae(driver)
         else:
             # O único 'Salvar' da tela fica em preencher_custas_recolhidas: sem recolhidas, a escolha das custas do reclamado se perdia.
             self.salvar_operacao(driver)

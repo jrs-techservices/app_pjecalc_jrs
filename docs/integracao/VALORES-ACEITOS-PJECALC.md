@@ -298,6 +298,22 @@ Com `ir_apurar = false` a tela desabilita todas as outras: mandá-las junto → 
 (Apurar e as quatro deduções marcadas; o resto desmarcado). Sem nenhuma chave `ir_*`, a tela não é tocada. As chaves do
 formato antigo (`ir_regime`, `ir_exclusiva`, `ir_deducoes`, em texto) vão para `ignorados`.
 
+### `custas`: a tela Custas Judiciais inteira (implementado em 16/10/2026)
+
+Além de `tipoDeCustasDeConhecimentoDoReclamado` (+ data/valor se INFORMADA) e `custasPagasDoReclamado[]`, que já existiam:
+
+| campo | valores | regra |
+|---|---|---|
+| `baseParaCustasCalculadas` | `BRUTO_DEVIDO_AO_RECLAMANTE` · `BRUTO_DEVIDO_AO_RECLAMANTE_MAIS_DEBITOS_RECLAMADO` | |
+| `tipoDeCustasDeConhecimentoDoReclamante` | `NAO_SE_APLICA` · `CALCULADA_2_POR_CENTO` · `INFORMADA` | |
+| `tipoCobrancaReclamante` | `DESCONTAR_CREDITO` · `COBRAR` | só com custas do reclamante ≠ `NAO_SE_APLICA` |
+| `dataVencimentoConhecimentoDoReclamante` · `valorDeConhecimentoDoReclamante` | data `AAAA-MM-DD` · número > 0 | obrigatórios com reclamante `INFORMADA`, proibidos sem |
+| `tipoDeCustasDeLiquidacao` | `NAO_SE_APLICA` · `CALCULADA_MEIO_POR_CENTO` · `INFORMADA` | |
+| `dataVencimentoCustasDeLiquidacao` · `valorCustasDeLiquidacao` | data · número > 0 | obrigatórios com liquidação `INFORMADA`, proibidos sem |
+| `custasPagasDoReclamante[]` | `{ dataVencimento, valor }` | lista "Reclamante" da aba Custas Recolhidas; vencimento a partir do ajuizamento (a tela recusa antes) |
+
+Ausente = padrão da tela. Códigos = os do .PJC (`CustasJudiciais/*`, `custasPagasDoReclamado|custasPagasDoReclamante/CustaPaga`).
+
 ### `dataLiquidacao`: data da liquidação (tela Liquidar)
 
 `"dataLiquidacao": "AAAA-MM-DD"` na raiz. Presente: o robô liquida nessa data (as duas liquidações). Ausente: a regra de sempre —

@@ -254,10 +254,80 @@ def _fracao(r, caminho, valor):
     return float(numero)
 
 
+TIPOS_CUSTAS_RECLAMANTE = ("NAO_SE_APLICA", "CALCULADA_2_POR_CENTO", "INFORMADA")
+TIPOS_CUSTAS_LIQUIDACAO = ("NAO_SE_APLICA", "CALCULADA_MEIO_POR_CENTO", "INFORMADA")
+BASES_CUSTAS = ("BRUTO_DEVIDO_AO_RECLAMANTE", "BRUTO_DEVIDO_AO_RECLAMANTE_MAIS_DEBITOS_RECLAMADO")
+
+
+def _custas_completas(r, bloco):
+    """Campos da tela Custas Judiciais além das do reclamado: base das calculadas, custas do reclamante (tipo, cobrança,
+    vencimento/valor se INFORMADA), de liquidação (tipo, vencimento/valor se INFORMADA) e as recolhidas pelo reclamante.
+    Códigos = os do .PJC. Ausente = padrão da tela."""
+    def codigo(campo, opcoes, chave):
+        valor = bloco.get(campo)
+        if valor in (None, ""):
+            return None
+        if valor not in opcoes:
+            r.erro(f"custas.{campo}", valor, "valor não reconhecido", opcoes)
+            return None
+        r.usar(f"custas.{campo}", chave, valor)
+        return valor
+
+    def informada(tipo, campo_data, campo_valor, chave_data, chave_valor, rotulo):
+        for campo in (campo_data, campo_valor):
+            if campo in bloco and tipo != "INFORMADA":
+                r.erro(f"custas.{campo}", bloco[campo], f"só com {rotulo} = INFORMADA")
+        if tipo != "INFORMADA":
+            return
+        serial = r.data(f"custas.{campo_data}", bloco.get(campo_data))
+        valor = numero_da_planilha(bloco.get(campo_valor))
+        if valor is None or valor <= 0:
+            r.erro(f"custas.{campo_valor}", bloco.get(campo_valor), f"valor obrigatório (> 0) com {rotulo} = INFORMADA")
+        if serial is not None and valor is not None and valor > 0:
+            r.usar(f"custas.{campo_data}", chave_data, f"{ORIGEM_EXCEL + timedelta(days=serial):%d/%m/%Y}")
+            r.usar(f"custas.{campo_valor}", chave_valor, float(valor))
+
+    codigo("baseParaCustasCalculadas", BASES_CUSTAS, "custas_base")
+    reclamante = codigo("tipoDeCustasDeConhecimentoDoReclamante", TIPOS_CUSTAS_RECLAMANTE, "custas_rcte_tipo")
+    if "tipoCobrancaReclamante" in bloco:
+        if reclamante in (None, "NAO_SE_APLICA"):
+            r.erro("custas.tipoCobrancaReclamante", bloco["tipoCobrancaReclamante"],
+                   "só com tipoDeCustasDeConhecimentoDoReclamante diferente de NAO_SE_APLICA (a tela só mostra assim)")
+        else:
+            codigo("tipoCobrancaReclamante", ("DESCONTAR_CREDITO", "COBRAR"), "custas_rcte_cobranca")
+    informada(reclamante, "dataVencimentoConhecimentoDoReclamante", "valorDeConhecimentoDoReclamante", "custas_rcte_vcto",
+              "custas_rcte_valor", "tipoDeCustasDeConhecimentoDoReclamante")
+    liquidacao = codigo("tipoDeCustasDeLiquidacao", TIPOS_CUSTAS_LIQUIDACAO, "custas_liq_tipo")
+    informada(liquidacao, "dataVencimentoCustasDeLiquidacao", "valorCustasDeLiquidacao", "custas_liq_vcto", "custas_liq_valor",
+              "tipoDeCustasDeLiquidacao")
+    pagas = bloco.get("custasPagasDoReclamante")
+    if pagas not in (None, []):
+        if not isinstance(pagas, list) or not all(isinstance(i, dict) for i in pagas):
+            r.erro("custas.custasPagasDoReclamante", pagas, "deve ser uma lista de { dataVencimento, valor }")
+            return
+        linhas, erros_antes = [], len(r.erros)
+        for n, paga in enumerate(pagas):
+            onde = f"custas.custasPagasDoReclamante[{n}]"
+            serial = r.data(f"{onde}.dataVencimento", paga.get("dataVencimento"))
+            valor = numero_da_planilha(paga.get("valor"))
+            ajuizamento = r.valores.get("data_ajuizamento")
+            if valor is None or valor <= 0:
+                r.erro(f"{onde}.valor", paga.get("valor"), "valor em reais maior que zero")
+            elif serial is not None and isinstance(ajuizamento, int) and serial < ajuizamento:
+                # a tela recusa: "O valor do campo Vencimento deve ser igual ou maior que Data de Ajuizamento no Cálculo"
+                r.erro(f"{onde}.dataVencimento", paga.get("dataVencimento"), "antes do ajuizamento (a tela recusa)")
+            elif serial is not None:
+                linhas.append([f"{ORIGEM_EXCEL + timedelta(days=serial):%d/%m/%Y}", float(valor)])
+        if len(r.erros) == erros_antes:
+            r.valores["custas_pagas_rcte"] = json.dumps(linhas)
+            r.usados.update({"custas.custasPagasDoReclamante[].dataVencimento", "custas.custasPagasDoReclamante[].valor"})
+
+
 def _custas(r):
     bloco = r.dados.get("custas") or {}
     if not bloco:
         return
+    _custas_completas(r, bloco)
     tipo = None
     if "tipoDeCustasDeConhecimentoDoReclamado" in bloco:
         tipo = r.enumeracao("custas.tipoDeCustasDeConhecimentoDoReclamado", bloco["tipoDeCustasDeConhecimentoDoReclamado"], CUSTAS_RECLAMADO)
