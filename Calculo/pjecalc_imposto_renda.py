@@ -42,7 +42,9 @@ class ImpostoRenda:
     def _marcar(self, driver, campo, marcar):
         caixa = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, f"formulario:{campo}")))
         if not caixa.is_enabled():
-            registrar("Imposto de Renda", f"'{campo}' desabilitado na tela; não aplicado", origem="automacao")
+            # desabilitada já no estado pedido (ex.: Deduzir false com o quadro vazio) não é pendência
+            if caixa.is_selected() != marcar:
+                registrar("Imposto de Renda", f"'{campo}' desabilitado na tela; não aplicado", origem="automacao")
             return
         if caixa.is_selected() != marcar:
             caixa.click()

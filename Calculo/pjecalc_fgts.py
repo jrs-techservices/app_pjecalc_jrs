@@ -142,7 +142,9 @@ class FGTS(DadosCalculo):
     def _marcar(self, driver, id_campo, marcar, rotulo):
         caixa = WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, id_campo)))
         if not caixa.is_enabled():
-            registrar("FGTS", f"'{rotulo}' desabilitado na tela; não aplicado", origem="automacao")
+            # desabilitada já no estado pedido (ex.: Deduzir false com o quadro vazio) não é pendência
+            if caixa.is_selected() != marcar:
+                registrar("FGTS", f"'{rotulo}' desabilitado na tela; não aplicado", origem="automacao")
             return
         if caixa.is_selected() != marcar:
             caixa.click()
