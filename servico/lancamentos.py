@@ -940,6 +940,63 @@ def _ler_historico_csv(r, chave, caminho):
     return None if len(r.erros) > erros_antes else (nome, caminho)
 
 
+HORA = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+CABECALHO_CARTAO = ["DATA"] + [f"{t}{n}" for n in range(1, 7) for t in ("ENTRADA", "SAIDA")]
+
+
+def _ler_cartao_de_ponto(r, chave, caminho):
+    """Batidas no layout do ExemploJornadaCartaoDePonto.csv do PJe-Calc (Cartão de Ponto › Grade › Importar Jornada):
+    Data;Entrada1;Saída1;…;Entrada6;Saída6 — data dd/mm/aaaa, horas HH:MM. O PJe-Calc recusa o arquivo inteiro se um turno
+    tiver só a entrada ou só a saída; a porta recusa antes, citando as datas. Devolve (primeira data, última data) ou None."""
+    base = f"arquivos.{chave}"
+    try:
+        linhas = _linhas_do_csv(caminho)
+    except OSError as erro:
+        r.erro(base, caminho, f"não foi possível ler o arquivo: {erro}")
+        return None
+    titulos = [_sem_acento(t.strip().lstrip("\ufeff")).upper().replace(" ", "") for t in (linhas[0] if linhas else [])]
+    if titulos[:13] != CABECALHO_CARTAO:
+        r.erro(base, caminho, "cabeçalho inválido: use o do exemplo do PJe-Calc (Data;Entrada1;Saída1;…;Entrada6;Saída6)",
+               ["Data", "Entrada1", "Saída1", "…", "Entrada6", "Saída6"])
+        return None
+    erros_antes, problemas, datas = len(r.erros), 0, []
+    for numero, linha in enumerate(linhas[1:], start=2):
+        if not any(c.strip() for c in linha):
+            continue
+        celulas = [c.strip() for c in linha] + [""] * 13
+        problema = None
+        try:
+            dia = datetime.strptime(celulas[0], "%d/%m/%Y") if DATA_BR.match(celulas[0]) else None
+        except ValueError:
+            dia = None
+        if dia is None:
+            problema = f"data {celulas[0]!r}; use dd/mm/aaaa"
+        else:
+            for turno in range(6):
+                entrada, saida = celulas[1 + 2 * turno], celulas[2 + 2 * turno]
+                ruins = [h for h in (entrada, saida) if h and not HORA.match(h)]
+                if ruins:
+                    problema = f"{celulas[0]}: hora {ruins[0]!r}; use HH:MM"
+                    break
+                if bool(entrada) != bool(saida):
+                    problema = f"{celulas[0]}: turno {turno + 1} com {'entrada sem saída' if entrada else 'saída sem entrada'}"
+                    break
+        if problema:
+            problemas += 1
+            if problemas <= MAXIMO_ERROS_POR_ARQUIVO:
+                r.erro(base, caminho, f"linha {numero}: {problema}")
+            continue
+        datas.append(dia)
+    if problemas > MAXIMO_ERROS_POR_ARQUIVO:
+        r.erro(base, caminho, f"{problemas} linhas com problema no total (mostradas as {MAXIMO_ERROS_POR_ARQUIVO} primeiras); "
+                              "o PJe-Calc recusa o arquivo inteiro")
+    if not datas and len(r.erros) == erros_antes:
+        r.erro(base, caminho, "arquivo sem nenhum dia")
+    if len(r.erros) > erros_antes:
+        return None
+    return min(datas).strftime("%d/%m/%Y"), max(datas).strftime("%d/%m/%Y")
+
+
 def _valor_br(texto):
     """'1.500,00' / '850,5' / '850' / '1.500' (milhar) -> float."""
     texto = texto.strip()
@@ -1096,6 +1153,13 @@ def _arquivos(r, caminho_json):
             _conferir_periodos_de_ferias(r, chave, caminho, r.ferias)
             _conferir_situacoes_de_ferias(r, chave, caminho, r.ferias)
             r.usados.add(base)
+        elif chave == "cartao-de-ponto":
+            periodo = _ler_cartao_de_ponto(r, chave, caminho)
+            if periodo:
+                # a tela Cartão de Ponto importa o arquivo com os critérios padrão no período das batidas
+                r.usar(base, "cartao_ponto_arquivo", caminho)
+                r.usar(base, "cartao_ponto_inicio", periodo[0])
+                r.usar(base, "cartao_ponto_fim", periodo[1])
         else:
             r.arquivos[chave] = caminho
             r.ignorar(base, "arquivo recebido, mas esta importação ainda não é feita pela automação")

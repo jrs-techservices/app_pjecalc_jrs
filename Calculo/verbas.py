@@ -1056,10 +1056,10 @@ class Verbas:
 
         del valor
 
-    # STPCARTAOPONTO
-    # def modificar_stpcartaoponto(self, driver, valor):
-    #     pass
-    #     del valor
+    # STPCARTAOPONTO (quantidade) · STPCARTAOPONTODIVISOR (divisor): coluna da apuração do Cartão de Ponto
+    def modificar_stpcartaoponto(self, driver, valor, campo='Quantidade'):
+        from Calculo.pjecalc_cartao_ponto import selecionar_coluna_do_cartao
+        selecionar_coluna_do_cartao(driver, campo, valor)
 
     # RVLOUTROVALORQTD
     def modificar_rvloutrovalorqtd(self, driver, valor):
@@ -2435,6 +2435,11 @@ class Verbas:
                             self.modificar_rvloutrodivisor(driver, dado)
                             continue
 
+                        if vc == 'STPCARTAOPONTODIVISOR':
+                            print("- STPCARTAOPONTODIVISOR: ", dado)
+                            self.modificar_stpcartaoponto(driver, dado, 'Divisor')
+                            continue
+
                         if vc == 'RVLMULTIPLICADOR':
                             print("- RVLMULTIPLICADOR: ", dado)
                             self.modificar_rvlmultiplicador(driver, dado)
@@ -2448,6 +2453,11 @@ class Verbas:
                         if vc == 'STPCALENDARIO':
                             print("- STPCALENDARIO: ", dado)
                             self.modificar_stpcalendario(driver, dado)
+                            continue
+
+                        if vc == 'STPCARTAOPONTO':
+                            print("- STPCARTAOPONTO: ", dado)
+                            self.modificar_stpcartaoponto(driver, dado)
                             continue
 
                         if vc == 'RVLOUTROVALORQTD':

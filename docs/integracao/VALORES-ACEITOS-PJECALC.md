@@ -226,7 +226,7 @@ Exemplo — ADC 58 + Lei 14.905/2024, ajuizamento 19/02/2024: `cj_correcao` `"IP
 `telas.dados-do-calculo.indices_acumulados` (sim/não) também — use `cj_indices_acumulados`.
 
 
-**Não lido ainda** (vai para `ignorados`, o pedido segue): o bloco `verbas` ("próxima fase"), o `cartao-de-ponto` de `arquivos`; as telas
+**Não lido ainda** (vai para `ignorados`, o pedido segue): o bloco `verbas` ("próxima fase"); as telas
 `salario-familia`, `seguro-desemprego`, `previdencia-privada`, `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`
 ("tela ainda não automatizada"); qualquer outro campo ("campo não reconhecido" / "campo sem correspondente na automação").
 
@@ -411,7 +411,15 @@ dentro das pastas permitidas. Arquivo inexistente ou com linha inválida: `400 l
 | `ferias` | `RELATIVAS;PRAZO;SITUACAO;DOBRA;ABONO;QTD_DIAS_ABONO;G1INI;G1FIM;G1DOBRA;G2INI;G2FIM;G2DOBRA;G3INI;G3FIM;G3DOBRA` — datas `dd/mm/aaaa`; `SITUACAO` só `G` · `GP` · `I` · `P` (`NG` é gravado como Gozadas: recusado); período aquisitivo (aniversário da admissão no 1º ano até a véspera do seguinte) dentro do contrato — as proporcionais o PJe-Calc calcula sozinho | importa em **Férias** |
 | `historico-salarial` | `MES_ANO;<NOME DO HISTÓRICO>;FGTS;FGTS_REC.;CONTRIBUICAO_SOCIAL;CONTRIBUICAO_SOCIAL_REC.` — competência `MM/AAAA`, valor com vírgula (`1234,56`), marcas `S`/`N` | cria o histórico salarial (**parcela variável**, nome = título da 2ª coluna, até 120 caracteres) e importa as competências; o PJe-Calc marca as incidências FGTS e Contribuição Social conforme os `S`/`N` do arquivo |
 | `base-inss` | `MES_ANO;PARCELA;VALOR` — competência `MM/AAAA`, `PARCELA` = `SALARIO` ou `13`, valor com vírgula decimal | grava a coluna **Salários Pagos (Histórico)** de Contribuição Social › Ocorrências, **casando por competência**: a 1ª linha do mês recebe o `SALARIO`, a 2ª (dezembro, ou o mês da demissão/data final no último ano) recebe o `13`. **Vence** a soma dos históricos com `CONTRIBUICAO_SOCIAL = S`. Na porta: competência dentro do contrato, uma linha por competência e parcela, `13` só em dezembro ou no mês da demissão/data final. Linha do arquivo sem linha na tela, ou o contrário: pendência `automacao` (fica o valor do PJe-Calc) |
-| `cartao-de-ponto` | — | recebido, mas **ainda não importado** (vai para `ignorados`) |
+| `cartao-de-ponto` | `Data;Entrada1;Saída1;…;Entrada6;Saída6` — o layout do `ExemploJornadaCartaoDePonto.csv` do PJe-Calc; data `dd/mm/aaaa`, horas `HH:MM` | **Cartão de Ponto** (desde 17/10/2026): Critérios de Apuração no **padrão do PJe-Calc** no período das batidas (primeira a última data, dentro de admissão–demissão), Grade de Ocorrências › Importar Jornada, Visualizar Cartão › Apurar. Roda antes das Verbas. Recusa da tela **interrompe** a execução (as verbas do cartão sairiam zeradas) |
+
+- **Cartão de ponto: o que a porta recusa** (o PJe-Calc recusa o arquivo **inteiro** por um dia ruim — *"Sempre deve haver uma
+  hora de entrada e saída válida para um turno preenchido. Verifique a data: 28/02/2019."*): turno com só a entrada ou só a
+  saída, hora fora de `HH:MM`, data inválida, cabeçalho diferente do exemplo (acento e BOM são indiferentes), arquivo sem dias.
+  Mostra as 5 primeiras linhas e o total. Verba com divisor ou quantidade `IMPORTADA_DO_CARTAO` sem `arquivos.cartao-de-ponto`
+  também é `400`.
+- **Colunas da apuração com os critérios padrão**: `Dias Trabalhados` · `Hs EXT` · `Hs Trabalhadas` (outros critérios, ainda
+  não lidos do `.json`, acrescentam colunas). A tela `telas.cartao-de-ponto` (critérios) segue em `ignorados`.
 
 - **Histórico: o que o PJe-Calc 2.16.0 aceita na importação** (testado na tela em 07/10/2026; a porta espelha isto):
   - competência **`MM/AAAA`** (`02/2018`). `fev/18` é **recusado pelo próprio PJe-Calc**: *"Valor inválido para data. A data
@@ -628,7 +636,7 @@ REMUNERADO EM DOBRO`: a lista muda quando o PJe-Calc atualiza as tabelas):
 | `DDTINICIO` · `DDTTERMINO` | data | período da verba | — |
 | `RVLVALORDEVIDO` · `SFLPROPORCIONALIDADE` | número · `S`/`N` | só se `STPVALOR` = `I` | — |
 | `STPBASEDEVIDO` | `HS` · `MR` · `PS` · `SM` · `VT` | Histórico Salarial · Maior Remuneração · Piso · Salário Mínimo · Vale Transporte | `HISTORICO_SALARIAL` · `MAIOR_REMUNERACAO` · … · `SALARIO_MINIMO` · `VALE_TRANSPORTE` |
-| `STPDIVISOR` · `RVLOUTRODIVISOR` | `IN` · `CH` · `DU` · `ICP` · número | Informado · Carga Horária · Dias Úteis · Importada do Cartão | `OUTRO_VALOR` · `CARGA_HORARIA` · `DIAS_UTEIS` · `IMPORTADA_DO_CARTAO` |
+| `STPDIVISOR` · `RVLOUTRODIVISOR` · `STPCARTAOPONTODIVISOR` | `IN` · `CH` · `DU` · `ICP` · número · coluna do cartão | Informado · Carga Horária · Dias Úteis · Importada do Cartão | `OUTRO_VALOR` · `CARGA_HORARIA` · `DIAS_UTEIS` · `IMPORTADA_DO_CARTAO` |
 | `RVLMULTIPLICADOR` | número | multiplicador | — |
 | `STPQUANTIDADE` · `STPCALENDARIO` · `RVLOUTROVALORQTD` · `SFLQTDPROPORCIONALIDADE` | `IN` · `AV` · `ICL` · `ICP` · calendário `RF`/`R`/`F`/`DU` · número · `S`/`N` | Informada · Avos · Importada do Calendário · Importada do Cartão | `INFORMADA` · `AVOS` · `IMPORTADA_DO_CALENDARIO` · `IMPORTADA_DO_CARTAO` |
 | `STPVALORPAGO` · `STPBASEPAGO` · `RVLINOUTROVALOR` · `SFLVPGPROPORCIONALIDADE` | `I` · `C` · base como `STPBASEDEVIDO` · número · `S`/`N` | Valor pago | `INFORMADO` · `CALCULADO` |
@@ -695,9 +703,9 @@ Vocabulário único: **o código do XML do `.PJC`**. Valor fora da lista → `40
 | `proporcionalidade` | booleano | "Proporcionalizar" do Valor Devido (o devido no mês incompleto), com `INFORMADO` ou `CALCULADO`; ausente = padrão do Expresso |
 | `baseTabelada` | `HISTORICO_SALARIAL` · `MAIOR_REMUNERACAO` · `PISO_SALARIAL` · `SALARIO_MINIMO` · `VALE_TRANSPORTE` | só com `CALCULADO` |
 | `bases[]` | `{ tipo: HISTORICO \| VERBA, referencia, proporcionalizar }` | `HISTORICO`: `referencia` = nome de um histórico do **mesmo pedido** (título da 2ª coluna do `.csv`) — **se não existir, o pedido é recusado** (o PJe-Calc zeraria a verba em silêncio). `VERBA`: `referencia` = `id` de outra verba do pedido |
-| `divisor` | `{ tipo: OUTRO_VALOR \| CARGA_HORARIA \| DIAS_UTEIS \| IMPORTADA_DO_CARTAO, valor }` | **obrigatório com `CALCULADO`** (a tela exige); `valor` obrigatório com `OUTRO_VALOR` |
+| `divisor` | `{ tipo: OUTRO_VALOR \| CARGA_HORARIA \| DIAS_UTEIS \| IMPORTADA_DO_CARTAO, valor, coluna }` | **obrigatório com `CALCULADO`** (a tela exige); `valor` obrigatório com `OUTRO_VALOR`; `coluna` (texto do seletor: `Dias Trabalhados` · `Hs EXT` · `Hs Trabalhadas`) obrigatória com `IMPORTADA_DO_CARTAO` e só com ele; ou `colunas: [..]`, que o PJe-Calc soma (cada uma entra pelo "+" da tela) |
 | `multiplicador` | número | **obrigatório com `CALCULADO`** (a tela exige); só o campo numérico, sem tipo |
-| `quantidade` | `{ tipo: INFORMADA \| IMPORTADA_DO_CALENDARIO \| IMPORTADA_DO_CARTAO \| AVOS \| APURADA, valor, calendario, proporcionalidade }` — `valor` é o `RVLOUTROVALORQTD` da planilha | `AVOS` só com 13º/Férias e `APURADA` só com Aviso Prévio (não clicam nada); `calendario`: `REPOUSOS_E_FERIADOS` · `REPOUSOS` · `FERIADOS` · `DIAS_UTEIS` |
+| `quantidade` | `{ tipo: INFORMADA \| IMPORTADA_DO_CALENDARIO \| IMPORTADA_DO_CARTAO \| AVOS \| APURADA, valor, calendario, coluna, proporcionalidade }` — `valor` é o `RVLOUTROVALORQTD` da planilha; `coluna` como no `divisor` (vira `STPCARTAOPONTO`) | `AVOS` só com 13º/Férias e `APURADA` só com Aviso Prévio (não clicam nada); `calendario`: `REPOUSOS_E_FERIADOS` · `REPOUSOS` · `FERIADOS` · `DIAS_UTEIS` |
 | `valorPago` | `{ tipo: INFORMADO \| CALCULADO, base, valor, quantidade, proporcionalidade, bases }` (`bases[].proporcionalizar` ausente = `false`) | `base` com os valores de `baseTabelada`; `quantidade` é o `RVLQUANTIDADE` da planilha |
 | `comentario` | texto | |
 | `reflexos` | `{ decimoTerceiro, ferias, aviso, repouso, art477, art467, separarFerias, horasExtras50, horasExtras100, gratificacaoAnual, gratificacaoSemestral, licencaPremio, apip, plr }` booleanos | `true` = marcar (ativar) o reflexo na principal; se o PJe-Calc não o oferecer, vale `reflexosManuais`. `false` ou ausente = **não mexer**: os reflexos que o PJe-Calc gera sozinho continuam lá, **desativados** (como nos `.PJC` de hoje); reflexo manual não é criado |

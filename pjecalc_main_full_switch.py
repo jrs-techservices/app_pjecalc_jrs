@@ -10,6 +10,7 @@ from Calculo.pjecalc_dados_calculo import DadosCalculo
 from Calculo.pjecalc_faltas import Faltas
 from Calculo.pjecalc_ferias import Ferias
 from Calculo.pjecalc_historico_salarial import HistoricoSalarial
+from Calculo.pjecalc_cartao_ponto import CartaoPonto
 from Calculo.pjecalc_verbas import VerbasModel
 from Calculo.verbas import Verbas
 from Calculo.pjecalc_fgts import FGTS
@@ -91,6 +92,11 @@ def function_main(driver, value):
                 # ---------- PJeCalc - Histórico Salarial ---------- #
                 objeto_historico = HistoricoSalarial(locale_plabase)
                 objeto_historico.main_historico_salarial(driver, admissao, rescisao, inicio_calculo, termino_calculo)
+                objTools.limparFilesTemp()
+
+                # ---------- PJeCalc - Cartão de Ponto (só com arquivos.cartao-de-ponto do .json) ---------- #
+                # antes das Verbas: as de divisor/quantidade importada do cartão leem a apuração
+                CartaoPonto(locale_plabase).main_cartao_ponto(driver)
                 objTools.limparFilesTemp()
 
 

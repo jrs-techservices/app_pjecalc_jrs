@@ -79,7 +79,7 @@ COLUNAS_VERBA = [
     "STPOCORRENCIAPAGAMENTO", "ICDASSUNTO", "STPPARCELA", "STPVALOR", "STPJUROSSUMULA", "STPTIPOVERBA", "STPGERARVERBAREFLEXA",
     "STPGERARVERBAPRINCIPAL", "SFLCOMPORPRINCIPAL", "SFLPADRAOZERARVALORNEGATIVO", "DDTINICIO", "DDTTERMINO",
     "SFLEXCLUIRFALTAJUSTIFICADA", "SFLEXCLUIRFALTANAOJUSTIFICADA", "SFLEXCLUIRFERIASGOZADAS", "SFLDOBRARVALOR", "RVLVALORDEVIDO",
-    "SFLPROPORCIONALIDADE", "STPBASEDEVIDO", "STPDIVISOR", "RVLOUTRODIVISOR", "RVLMULTIPLICADOR", "STPQUANTIDADE",
+    "SFLPROPORCIONALIDADE", "STPBASEDEVIDO", "STPDIVISOR", "RVLOUTRODIVISOR", "STPCARTAOPONTODIVISOR", "RVLMULTIPLICADOR", "STPQUANTIDADE",
     "STPCALENDARIO", "STPCARTAOPONTO", "RVLOUTROVALORQTD", "SFLQTDPROPORCIONALIDADE", "STPVALORPAGO", "STPBASEPAGO",
     "RVLINOUTROVALOR", "SFLVPGPROPORCIONALIDADE", "RVLQUANTIDADE", "SDSCOMENTARIO", "STPCOMPORTAMENTOREFLEXO",
     "STPPERIODOMEDIAREFLEXO", "STPTRATAMENTOFRACAOMESREFLEXO", "SFLSEPARARFERIAS", "SFLREFLEXOHEXTRAS50",
@@ -91,7 +91,7 @@ COLUNAS_REFLEXA = [
     "STPCARACTERISTICAVERBA", "STPOCORRENCIAPAGAMENTO", "STPJUROSSUMULA", "STPTIPOVERBA", "STPGERARVERBAREFLEXA",
     "STPGERARVERBAPRINCIPAL", "SFLCOMPORPRINCIPAL", "SFLPADRAOZERARVALORNEGATIVO", "DDTINICIO", "DDTTERMINO",
     "SFLEXCLUIRFALTAJUSTIFICADA", "SFLEXCLUIRFALTANAOJUSTIFICADA", "SFLEXCLUIRFERIASGOZADAS", "SFLDOBRARVALOR", "RVLVALORDEVIDO",
-    "SFLPROPORCIONALIDADE", "STPBASEDEVIDO", "STPDIVISOR", "RVLOUTRODIVISOR", "RVLMULTIPLICADOR", "STPQUANTIDADE",
+    "SFLPROPORCIONALIDADE", "STPBASEDEVIDO", "STPDIVISOR", "RVLOUTRODIVISOR", "STPCARTAOPONTODIVISOR", "RVLMULTIPLICADOR", "STPQUANTIDADE",
     "STPCALENDARIO", "STPCARTAOPONTO", "RVLOUTROVALORQTD", "SFLQTDPROPORCIONALIDADE", "STPVALORPAGO", "STPBASEPAGO",
     "RVLINOUTROVALOR", "SFLVPGPROPORCIONALIDADE", "RVLQUANTIDADE", "SDSCOMENTARIO", "SFLREFLEXO13TERCEIRO", "SFLREFLEXOFERIAS",
     "SFLREFLEXOAVISO", "SFLREFLEXOREPOUSO", "SFLREFLEXOART477CLT", "SFLREFLEXOART467CLT", "STPCOMPORTAMENTOREFLEXO",
@@ -224,6 +224,29 @@ def _parametros_comuns(ler, linha):
     return valor, caracteristica, ocorrencia
 
 
+COLUNAS_DO_CARTAO_PADRAO = ("Dias Trabalhados", "Hs EXT", "Hs Trabalhadas")  # o que a apuração com os critérios padrão gera
+
+
+def _coluna_do_cartao(ler, campo, tipo):
+    """divisor/quantidade IMPORTADA_DO_CARTAO: `coluna` (texto do seletor da tela) ou `colunas` (várias, que o PJe-Calc
+    soma). Vai para a planilha separado por '|'."""
+    coluna, colunas = ler._valor(f"{campo}.coluna"), ler._valor(f"{campo}.colunas")
+    if tipo != "IMPORTADA_DO_CARTAO":
+        for nome, valor in (("coluna", coluna), ("colunas", colunas)):
+            if valor not in (None, "", []):
+                ler.erro(f"{campo}.{nome}", "só com tipo IMPORTADA_DO_CARTAO")
+        return None
+    if coluna not in (None, "") and colunas not in (None, []):
+        ler.erro(f"{campo}.colunas", "use `coluna` ou `colunas`, não os dois")
+        return None
+    lista = [coluna] if coluna not in (None, "") else colunas
+    if not isinstance(lista, list) or not lista or not all(isinstance(c, str) and c.strip() and "|" not in c for c in lista):
+        ler.erro(f"{campo}.coluna", "obrigatória com tipo IMPORTADA_DO_CARTAO: a coluna da apuração do cartão "
+                                    "(ou `colunas`, uma lista de textos)", COLUNAS_DO_CARTAO_PADRAO)
+        return None
+    return "|".join(" ".join(c.split()) for c in lista)
+
+
 def _divisor_quantidade(ler, linha, caracteristica):
     # Divisor e multiplicador são obrigatórios na tela de verba CALCULADO: sem eles o PJe-Calc não salva a verba.
     divisor = ler.item.get("divisor")
@@ -236,6 +259,7 @@ def _divisor_quantidade(ler, linha, caracteristica):
             tipo = ler.lista("divisor.tipo", DIVISOR, obrigatorio=True)
             linha["STPDIVISOR"] = DIVISOR.get(tipo)
             linha["RVLOUTRODIVISOR"] = ler.numero("divisor.valor", obrigatorio=tipo == "OUTRO_VALOR")
+            linha["STPCARTAOPONTODIVISOR"] = _coluna_do_cartao(ler, "divisor", tipo)
     linha["RVLMULTIPLICADOR"] = ler.numero("multiplicador", obrigatorio=True)
     quantidade = ler.item.get("quantidade")
     if quantidade is None:
@@ -249,6 +273,7 @@ def _divisor_quantidade(ler, linha, caracteristica):
     if tipo == "APURADA" and caracteristica != "AVISO_PREVIO":
         ler.erro("quantidade.tipo", "APURADA só com característica AVISO_PREVIO")
     linha["STPQUANTIDADE"] = QUANTIDADE.get(tipo)
+    linha["STPCARTAOPONTO"] = _coluna_do_cartao(ler, "quantidade", tipo)
     if tipo == "INFORMADA":
         linha["RVLOUTROVALORQTD"] = ler.numero("quantidade.valor", obrigatorio=True)
     calendario = ler.lista("quantidade.calendario", CALENDARIO)
@@ -434,6 +459,11 @@ def interpretar_verbas(r):
         if len(iguais) > 1:
             r.erro(f"{por_id[ident]['base']}.descricao", por_id[ident]["descricao"],
                    f"verba referenciada precisa de descrição única no pedido; repetida nas verbas {', '.join(iguais)}")
+
+    usa_cartao = [d["base"] for d in por_id.values() if "ICP" in (d["linha"].get("STPDIVISOR"), d["linha"].get("STPQUANTIDADE"))]
+    if usa_cartao and "cartao_ponto_arquivo" not in r.valores and not any(e["campo"] == "arquivos.cartao-de-ponto" for e in r.erros):
+        r.erro("arquivos.cartao-de-ponto", None, f"obrigatório: {', '.join(usa_cartao)} usa(m) divisor ou quantidade "
+                                                 "IMPORTADA_DO_CARTAO")
 
     if len(r.erros) > erros_antes:
         return
