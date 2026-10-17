@@ -100,10 +100,11 @@ def function_main(driver, value):
                 objTools.limparFilesTemp()
 
 
-                # FLUXO_LIQUIDACAO_UNICA=1: as verbas reais entram aqui e há uma liquidação só; a verba-modelo (que só existe
-                # porque o PJe-Calc não liquida sem verba) é criada apenas se a planilha de verbas vier sem registros.
-                # Desligada: o fluxo de sempre (modelo → 1ª liquidação → verbas reais → exclui a modelo → 2ª liquidação).
-                liquidacao_unica = os.environ.get("FLUXO_LIQUIDACAO_UNICA") == "1"
+                # Padrão (desde 17/10/2026, A/B no 17480 com 11 de 11 itens do .PJC iguais): as verbas reais entram aqui e há
+                # uma liquidação só; a verba-modelo (que só existe porque o PJe-Calc não liquida sem verba) é criada apenas se a
+                # planilha de verbas vier sem registros. FLUXO_LIQUIDACAO_UNICA=0 volta ao fluxo antigo (modelo → 1ª liquidação
+                # → verbas reais → exclui a modelo → 2ª liquidação).
+                liquidacao_unica = os.environ.get("FLUXO_LIQUIDACAO_UNICA", "1") != "0"
                 objMenu = PjecalcMenu()  # criado aqui: a limpeza do fim (del objMenu) roda nos dois fluxos
                 objeto_verbas_model = VerbasModel()
                 if liquidacao_unica:
