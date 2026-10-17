@@ -54,7 +54,7 @@ def function_main(driver, value):
                 objeto_home = PjecalcPaginaInicial()
 
                 try:
-                    driver.get('http://localhost:9257/pjecalc/pages/principal.jsf?conversationId=11')
+                    driver.get('http://localhost:9257/pjecalc/pages/principal.jsf')  # sem conversationId fixo: o PJe-Calc abre uma conversa nova
                     sleep(5)
                 except WebDriverException:
                     pa.alert(title='Rôberto', text='O PJeCalc não encontra-se em execução. Execute-o e inicialize a automação novamente.')
@@ -114,19 +114,11 @@ def function_main(driver, value):
                 objeto_ir.main_imposto_renda(driver)
                 objTools.limparFilesTemp()
 
-                try:
-                    # ---------- PJeCalc - Multas e Indenizações ---------- #
-                    objeto_multas = MultasIndenizacoes(locale_plabase)
-                    objeto_multas.main_multas_indenizacoes(driver)
-                    objTools.limparFilesTemp()
-                except Exception as e:
-                    print(f'- (except)[Multas e Indenizações]: {e}')
-                    driver.refresh()
-                    sleep(5)
-                    objTools.limparFilesTemp()
-                    objeto_multas = MultasIndenizacoes(locale_plabase)
-                    objeto_multas.main_multas_indenizacoes(driver)
-                    objTools.limparFilesTemp()
+                # ---------- PJeCalc - Multas e Indenizações ---------- #
+                # a própria tela exclui o que salvou e repete uma vez; repetir aqui duplicava as multas
+                objeto_multas = MultasIndenizacoes(locale_plabase)
+                objeto_multas.main_multas_indenizacoes(driver)
+                objTools.limparFilesTemp()
 
                 # ---------- PJeCalc - Honorários ---------- #
                 objeto_honorarios = Honorarios(locale_plabase)

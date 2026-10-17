@@ -214,6 +214,45 @@ def _capturar_tela(driver, execucao_id):
     return None
 
 
+PREFIXO_FALHOU = "FALHOU"
+
+
+def _marcar_calculo_falho(driver, execucao_id):
+    """Execução que falhou deixa o cálculo pela metade no PJe-Calc: o nome do reclamante ganha "FALHOU <id> - " para
+    ninguém usá-lo por engano (fica como evidência; não é excluído). Sem cálculo salvo ainda, não faz nada.
+    Devolve o nome novo, ou None."""
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.wait import WebDriverWait
+    from Tools.pjecalc_control import Control
+
+    try:
+        # cálculo já salvo: o cabeçalho das telas mostra "Cálculo: N"; em Dados do Cálculo, formulario:idCalculo (vazio antes de salvar)
+        salvo = driver.execute_script(r"""return /Cálculo:\s*\d+/.test(document.body.innerText) ||
+            /^\d+$/.test(((document.getElementById('formulario:idCalculo') || {}).value || '').trim());""")
+        if not salvo:
+            return None
+        espera = WebDriverWait(driver, 10)
+        espera.until(EC.element_to_be_clickable((By.CLASS_NAME, "menuImageCalculo"))).click()
+        Control().aguardar_carregamento(driver)
+        campo = espera.until(EC.presence_of_element_located((By.NAME, "formulario:reclamanteNome")))
+        atual = (campo.get_attribute("value") or "").strip()
+        if atual.upper().startswith(PREFIXO_FALHOU):
+            return atual
+        novo = f"{PREFIXO_FALHOU} {execucao_id} - {atual}"[:150]
+        campo.clear()
+        campo.send_keys(novo)
+        espera.until(EC.element_to_be_clickable((By.ID, "formulario:salvar"))).click()
+        Control().aguardar_carregamento(driver)
+        if "sucesso" not in driver.find_element(By.TAG_NAME, "body").text.lower():
+            print("- [servico] o PJe-Calc não confirmou a marca FALHOU no cálculo")
+            return None
+        return novo
+    except Exception as erro:
+        print(f"- [servico] não foi possível marcar o cálculo como FALHOU: {str(erro).strip()[:150] or type(erro).__name__}")
+        return None
+
+
 def _fechar(driver):
     if driver is None:
         return
@@ -308,6 +347,10 @@ def executar(execucao_id):
         if status == banco.STATUS_FALHOU and driver is not None:
             captura = _capturar_tela(driver, execucao_id)
             print(f"- [servico] captura da falha: {captura or 'não foi possível capturar'}")
+            marcado = _marcar_calculo_falho(driver, execucao_id)
+            if marcado:
+                print(f"- [servico] cálculo marcado no PJe-Calc: {marcado}")
+                mensagem = f"{mensagem or 'A execução falhou.'} O cálculo incompleto ficou no PJe-Calc como '{marcado}'."
     finally:
         _fechar(driver)
         limpar_complementos()

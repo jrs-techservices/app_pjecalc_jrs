@@ -140,7 +140,7 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `contrato` | `lancamentos-pjecalc/1` (aceita `/1.x`) | outro valor: recusa o `.json` inteiro |
 | `processo.id` | número ou texto | opcional |
 | `processo.numero` · `dadosDoCalculo.numeroProcesso` | CNJ `0000000-00.0000.0.00.0000` | fora do formato: recusado |
-| `dadosDoCalculo.partes[].polo` | `ATIVO` (reclamante) · `PASSIVO` (reclamado) | outro valor: recusado |
+| `dadosDoCalculo.partes[].polo` | `ATIVO` (reclamante) · `PASSIVO` (reclamado) | outro valor: recusado; **dois do mesmo polo: recusado** (o PJe-Calc tem um reclamante e um reclamado; o 2º apagava o 1º) |
 | `dadosDoCalculo.partes[].nome` | texto, até 150 | opcional |
 | `dadosDoCalculo.partes[].documento` | CPF ou CNPJ (com ou sem pontuação) | vazio/`null`: documento fica em branco no PJe-Calc |
 | `dataAdmissao` · `dataDemissao` · `dataAjuizamento` · `dataInicioCalculo` · `dataTerminoCalculo` | data | data inválida: recusado |
@@ -158,7 +158,7 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `dataVencimentoConhecimentoDoReclamado` · `valorConhecimentoDoReclamado` | data · número | **obrigatórios** se `INFORMADA`; ignorados nos outros tipos |
 | `custasPagasDoReclamado[].valor` · `.dataVencimento` (também aceita `.vencimento`) | número · data | sem data, a custa **não é lançada** (aviso) |
 
-**`honorarios[]`** (cada item)
+**`honorarios[]`** (cada item; `[]` = "não há honorários", conta como usado)
 
 | campo | tipo / formato | observação |
 |---|---|---|
@@ -172,7 +172,9 @@ Regras gerais: **datas** `AAAA-MM-DD` · **valores em reais** número (`2500.00`
 | `aliquota` · `baseParaApuracao` | fração · texto/código da lista do §3 | **obrigatórios** se `CALCULADO` |
 | `outroIndiceDeCorrecao` (ou `tipoDeIndiceDeCorrecao` "OUTRO…") | — | em `CALCULADO` é recusado; sai o índice trabalhista |
 
-**`multas[]`** (cada item; no máximo **9** por pedido)
+**`multas[]`** (cada item; no máximo **9** por pedido; `[]` = "não há multas", conta como usado)
+
+Em `honorarios[]` e `multas[]`, `descricao`, `nomeCredor` e `nomeTerceiro` passam pelo mesmo filtro das verbas: travessão, aspas curvas e reticências viram `-`, `"`, `'` e `...` (o PJe-Calc grava Latin-1 e mostraria `¿`), com aviso. No honorário, a descrição continua sem `-` — um travessão também é recusado.
 
 | campo | tipo / formato | observação |
 |---|---|---|
@@ -446,6 +448,12 @@ Planilha do SAP (com a aba `PJe Histórico`) **sem nenhum histórico nomeado** �
 - **`concluido`** exige o `.PJC` **e** o relatório em PDF. Sem o PDF a execução fica `falhou` ("o relatório em PDF não foi gerado").
 - **Liquidação recusada** pelo PJe-Calc → `falhou`, com a mensagem dele (ex.: *"É necessário resolver as pendências do tipo
   Erro antes de realizar a liquidação"*). Antes saía `concluido` sem relatório.
+- **Reflexo marcado que não entra** (o Expresso não o oferece e não há reflexo manual na `TBREFLEXA`, ou a marcação não ficou
+  ativa) → `falhou`, com o nome do reflexo. Antes o cálculo saía sem ele, calado.
+- **Multas**: se a tela falha no meio, a automação exclui as multas já salvas e repete uma vez; na 2ª falha → `falhou`. Antes
+  repetia sem excluir (duplicava) ou seguia sem parte delas.
+- **Execução que falha depois de salvar o cálculo**: o reclamante do cálculo no PJe-Calc ganha o prefixo `FALHOU <id> - `
+  (fica como evidência, não é excluído) e a mensagem da execução diz o nome.
 - **Verba ou reflexo manual recusado ao salvar** → `falhou`, com o nome da verba e a mensagem do PJe-Calc (a captura de tela
   mostra o formulário com o erro). Antes a verba era descartada e a execução seguia.
 - **`pendencias`** no `GET /calculos/{id}`: `[{ tela, mensagem, origem: "pjecalc" | "automacao" }]` — tudo o que o PJe-Calc não

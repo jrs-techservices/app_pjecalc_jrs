@@ -1,4 +1,4 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, interromper
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
@@ -61,7 +61,7 @@ class MultasIndenizacoes:
 
         try:
             mensagem = WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -378,20 +378,55 @@ class MultasIndenizacoes:
     def salvar(self, driver):
         WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.ID, 'formulario:salvar'))).click()
 
-    def main_multas_indenizacoes(self, driver):
-
-        # result_qtd = self.verificar_qtdMultasIndenizacoes()
-        # if result_qtd > 0:
-        try:
+    def excluir_lancadas(self, driver):
+        """Exclui as multas já salvas no cálculo (antes de repetir a tela, para não duplicar). Devolve quantas excluiu."""
+        excluidas = 0
+        for _ in range(50):
             self.acessar_multas_indenizacoes(driver)
             self.objTools.aguardar_carregamento(driver)
-            # Tempo de controle
             time.sleep(self.delayG)
-            self.preencher_dados_multas_indenizacoes(driver)
-            # Tempo de controle
+            links = driver.find_elements(By.CSS_SELECTOR, "[id^='formulario:listagem'] a.linkExcluir")
+            if not links:
+                return excluidas
+            driver.execute_script("arguments[0].click();", links[0])
+            self.objTools.aguardar_carregamento(driver)
             time.sleep(self.delayG)
-            self.objTools.limparFilesTemp()
-            print('-- Fim - (Multas e Indenizações) --')
-        except Exception as e:
-            print(f"- [except_main_multas_indenizacoes]: {e}")
-            self.objTools.limparFilesTemp()
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, "formulario:excluir"))).click()
+            try:
+                WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.ID, "popup_ok"))).click()
+            except TimeoutException:
+                pass
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(self.delayG)
+            excluidas += 1
+        raise RuntimeError("a listagem de multas não esvaziou depois de 50 exclusões")
+
+    def main_multas_indenizacoes(self, driver):
+        # Falha no meio: exclui o que já foi salvo e repete uma vez (repetir sem excluir duplicava as multas);
+        # na 2ª falha, interrompe: o cálculo sairia sem parte das multas.
+        for tentativa in (1, 2):
+            try:
+                self.acessar_multas_indenizacoes(driver)
+                self.objTools.aguardar_carregamento(driver)
+                # Tempo de controle
+                time.sleep(self.delayG)
+                self.preencher_dados_multas_indenizacoes(driver)
+                # Tempo de controle
+                time.sleep(self.delayG)
+                self.objTools.limparFilesTemp()
+                print('-- Fim - (Multas e Indenizações) --')
+                return
+            except Exception as e:
+                motivo = str(e).strip().splitlines()[0][:200] if str(e).strip() else type(e).__name__
+                print(f"- [except_main_multas_indenizacoes] tentativa {tentativa}: {motivo}")
+                if tentativa == 2:
+                    interromper('Multas e Indenizações', f"a tela falhou duas vezes: {motivo}")
+                    return
+                try:
+                    driver.refresh()
+                    time.sleep(5)
+                    print(f"- [Multas e Indenizações] excluídas {self.excluir_lancadas(driver)} multa(s) salvas antes de repetir")
+                except Exception as erro:
+                    interromper('Multas e Indenizações', f"falhou ({motivo}) e não foi possível excluir as multas já salvas "
+                                                         f"para repetir: {str(erro).strip()[:150] or type(erro).__name__}")
+                    return

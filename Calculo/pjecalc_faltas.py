@@ -1,4 +1,4 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, interromper
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoAlertPresentException
@@ -59,7 +59,7 @@ class Faltas:
         delay = 10
         try:
             mensagem = WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -120,6 +120,7 @@ class Faltas:
             ct += 1
             if ct == 10:
                 print('- Arquivo não existe!')
+                interromper('Faltas', 'o arquivo de faltas para importar não foi encontrado')  # no serviço para aqui com o motivo; no desktop registra e sai
                 exit()
         print('- Arquivo "Faltas.csv" disponível.')
         # Campo para anexar

@@ -1,4 +1,4 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, interromper
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -30,7 +30,7 @@ class Imprimir:
         delay = 10
         try:
             mensagem = WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 print('* Operação realizada com sucesso.')
@@ -41,6 +41,7 @@ class Imprimir:
                 de_relatorio('Imprimir')
         except TimeoutException:
             print('- {}* Exceção - Verificação -  A Página demorou para responder ou o elemento não foi encontrado. Encerrando...')
+            interromper('Imprimir', 'a tela não respondeu ao gerar o relatório')  # no serviço para aqui com o motivo; no desktop registra e sai
             exit()
 
         # Tempo de controle

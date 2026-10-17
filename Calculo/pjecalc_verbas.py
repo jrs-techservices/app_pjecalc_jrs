@@ -27,7 +27,7 @@ class VerbasModel:
             return file_txt_log.close()
 
         try:
-            mensagem = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+            mensagem = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -47,7 +47,7 @@ class VerbasModel:
             return file_txt_log.close()
 
         try:
-            mensagem = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+            mensagem = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -84,7 +84,14 @@ class VerbasModel:
 
 
     def selecionar_verba_principal(self, driver): # Ajuda de Custo
-        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, "formulario:j_id82:16:j_id84:0:selecionada"))).click()
+        # pelo nome na lista do Expresso (a posição — linha 16 — muda se a tabela de verbas do PJe-Calc mudar)
+        WebDriverWait(driver, self.delay).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[id$=':nome']")))
+        caixa = driver.execute_script("""const n = [...document.querySelectorAll("[id$=':nome']")]
+            .find(e => e.textContent.trim().toUpperCase() === 'AJUDA DE CUSTO');
+            return n ? n.id.replace(/:nome$/, ':selecionada') : null;""")
+        if caixa is None:
+            raise RuntimeError("verba-modelo: 'AJUDA DE CUSTO' não está na lista do Expresso")
+        WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, caixa))).click()
 
 
     def salvar_operacao(self, driver):

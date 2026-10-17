@@ -128,7 +128,7 @@ class Verbas:
             return file_txt_log.close()
 
         try:
-            mensagem = WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id77')))
+            mensagem = WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -147,7 +147,7 @@ class Verbas:
             file_txt_log.write(f'- {campo} | {status}\n')
             return file_txt_log.close()
         try:
-            mensagem = WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69'))).text
+            mensagem = WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']"))).text
             if 'Operação realizada com sucesso.' in mensagem:
                 # print('* Operação realizada com sucesso.')
                 gerar_relatorio('Verbas', 'Ok')
@@ -177,7 +177,7 @@ class Verbas:
 
         # formulario:painelMensagens:j_id4593
         try:
-            barraMensagem = WebDriverWait(driver, 2).until(EC.visibility_of_element_located((By.ID, "formulario:painelMensagens:j_id69")))
+            barraMensagem = WebDriverWait(driver, 2).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             alertaMensagem = barraMensagem.get_attribute("textContent")
             print("- 01. ", alertaMensagem)
             if 'sucesso' in alertaMensagem:
@@ -210,7 +210,7 @@ class Verbas:
 
         except:
 
-            barraMensagem = WebDriverWait(driver, 2).until(EC.visibility_of_element_located((By.ID, "formulario:painelMensagens:j_id77")))
+            barraMensagem = WebDriverWait(driver, 2).until(EC.visibility_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             alertaMensagem = barraMensagem.get_attribute("textContent")
             print("- 02. ", alertaMensagem)
             if 'Erro' in alertaMensagem:
@@ -357,6 +357,7 @@ class Verbas:
 
                         indice += 1
                 except TimeoutException:
+                    interromper('Verbas', f"verba {valor!r} não encontrada na lista do Expresso")  # no serviço para aqui com o motivo; no desktop registra e sai
                     exit()
 
         del valor
@@ -1007,6 +1008,9 @@ class Verbas:
         del valor
 
     # STPQUANTIDADE
+    # Tipo de quantidade pelo rótulo: a lista de rádios muda com a verba (13º/férias trazem Avos), então o índice não serve
+    ROTULOS_QUANTIDADE = {'IN': 'Informada', 'ICL': 'Importada do Calendário', 'ICP': 'Importada do Cartão de Ponto', 'AV': 'Avos'}
+
     def marcar_stpquantidade(self, driver, valor):
 
         # GABARITO
@@ -1015,14 +1019,23 @@ class Verbas:
         # ICP: Importada do Cartão de Ponto
         # AV: Avos
 
-        if valor == 'IN':
-            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tipoDaQuantidade:0'))).click()
-        elif valor == 'ICL':
-            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tipoDaQuantidade:1'))).click()
-        elif valor == 'ICP':
-            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tipoDaQuantidade:2'))).click()
-        elif valor == 'AV':
-            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:tipoDaQuantidade:1'))).click()
+        rotulo = self.ROTULOS_QUANTIDADE.get(valor)
+        if rotulo is None:
+            return
+        radios = driver.execute_script("""return [...document.querySelectorAll('input[type=radio][id^="formulario:tipoDaQuantidade:"]')]
+            .map(e => { const l = document.querySelector(`label[for="${e.id}"]`); return [e.id, l ? l.textContent.trim() : '', e.checked]; });""")
+        alvo = next((r for r in radios if r[1].lower() == rotulo.lower()), None)
+        if alvo is None:
+            if valor == 'AV':
+                # verba sem a opção Avos na lista: a tela já decide a quantidade (como a APURADA do aviso)
+                print(f"- [Verbas] quantidade Avos: a tela não oferece a opção ({', '.join(r[1] for r in radios) or 'sem rádios'})")
+                return
+            interromper("Verbas", f"'{getattr(self, 'verba_atual', '')}': tipo de quantidade '{rotulo}' não existe na tela "
+                                  f"(há: {', '.join(r[1] for r in radios) or 'nenhum'})")
+            return
+        if not alvo[2]:
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, alvo[0]))).click()
+            self.objTools.aguardar_carregamento(driver)
 
         del valor
 
@@ -1321,6 +1334,29 @@ class Verbas:
             self.objTools.aguardar_carregamento(driver)
             sleep(2)
             self.verificacao_2_new_parcelaReflexa(driver)
+
+    def reflexo_sem_registro(self, nome_reflexo, snmdescricaoverba):
+        """Reflexo marcado que o Expresso não oferece e sem a linha do reflexo manual na TBREFLEXA: antes, ficava de fora calado."""
+        interromper("Verbas", f"'{snmdescricaoverba}': reflexo de {nome_reflexo} marcado, mas o Expresso não o oferece e a "
+                              "planilha não traz o reflexo manual (TBREFLEXA)")
+
+    def conferir_reflexos_do_expresso(self, driver, snmdescricaoverba, marcados):
+        """Os reflexos marcados 'S' têm de estar ativos na lista da verba (o marcar_* só clica; não acusava quando não achava)."""
+        for coluna, valor in marcados.items():
+            if valor != 'S':
+                continue
+            nomes = [(p + snmdescricaoverba).upper() for p in self.PREFIXOS_REFLEXO_DO_EXPRESSO[coluna]]
+            achado = None
+            for _ in range(3):
+                achado = driver.execute_script(self.LINHA_DO_REFLEXO, nomes)
+                if achado != 'expandir':
+                    break
+                self.objTools.aguardar_carregamento(driver)
+                sleep(1)
+            if not isinstance(achado, dict):
+                interromper("Verbas", f"'{snmdescricaoverba}': reflexo {nomes[0]} marcado, mas não está na lista de reflexos da verba")
+            elif not achado['ativo']:
+                interromper("Verbas", f"'{snmdescricaoverba}': reflexo {nomes[0]} marcado, mas não ficou ativo")
 
     def marcar_sflreflexo13terceiro(self, driver, valor, snmdescricaoverba):
 
@@ -2622,6 +2658,10 @@ class Verbas:
                         self.objTools.aguardar_carregamento(driver)
                         sleep(0.5)
 
+                        # 13º, aviso e férias o Expresso sempre oferece: a marcação tem de ter ficado ativa na tela
+                        self.conferir_reflexos_do_expresso(driver, snmdescricaoverba, {
+                            "SFLREFLEXO13TERCEIRO": sflreflexo13terceiro, "SFLREFLEXOAVISO": sflreflexoaviso, "SFLREFLEXOFERIAS": sflreflexoferias})
+
                         # SFLREFLEXOART477CLT
                         result_477clt = self.marcar_sflreflexoart477clt(driver, sflreflexoart477clt, snmdescricaoverba)
                         if result_477clt == -1 and sflreflexoart477clt == "S":
@@ -2636,6 +2676,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('multa do art. 477 da CLT', snmdescricaoverba)
 
                             del result_477clt
                             del sflreflexoart477cltColumn
@@ -2659,6 +2701,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('multa do art. 467 da CLT', snmdescricaoverba)
 
                             del result_467clt
                             del sflreflexoart467cltColumn
@@ -2683,6 +2727,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('repouso semanal remunerado', snmdescricaoverba)
 
                             del result_repouso
                             del sflreflexorepousoColumn
@@ -2722,6 +2768,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('férias separadas do terço', snmdescricaoverba)
 
                             del idGetRegistro
                             self.objTools.limparFilesTemp()
@@ -2739,6 +2787,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('gratificação anual', snmdescricaoverba)
 
                             del sflreflexoganualColumn
                             del idGetRegistro
@@ -2757,6 +2807,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('gratificação semestral', snmdescricaoverba)
 
                             del sflreflexogsemestralColumn
                             self.objTools.limparFilesTemp()
@@ -2774,6 +2826,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('licença-prêmio', snmdescricaoverba)
 
                             del sflreflexolpremioColumn
                             del idGetRegistro
@@ -2792,6 +2846,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('APIP', snmdescricaoverba)
 
                             del sflreflexoapipColumn
                             del idGetRegistro
@@ -2810,6 +2866,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('horas extras 50%', snmdescricaoverba)
 
                             del sflreflexohextras50Column
                             del idGetRegistro
@@ -2828,6 +2886,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('horas extras 100%', snmdescricaoverba)
 
                             del sflreflexohextras100Column
                             del idGetRegistro
@@ -2846,6 +2906,8 @@ class Verbas:
                                 self.objTools.aguardar_carregamento(driver)
                                 sleep(delayG)
                                 self.verificacao_2_new_parcelaReflexa(driver)
+                            else:
+                                self.reflexo_sem_registro('PLR', snmdescricaoverba)
 
                             del sflreflexoplrColumn
                             del idGetRegistro

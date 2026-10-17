@@ -1,4 +1,4 @@
-from Tools.pendencias import de_relatorio
+from Tools.pendencias import de_relatorio, interromper
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.select import Select
@@ -63,7 +63,7 @@ class Correcao(DadosCalculo):
 
         delay = 10
         try:
-            mensagem = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+            mensagem = WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -76,6 +76,7 @@ class Correcao(DadosCalculo):
                 print('#- ', msg)
         except TimeoutException:
             print('- [Except][Correção/Juros/Multa][1] - Elemento não encontrado/A Página demorou para responder. Encerrando...')
+            interromper('Correção, Juros e Multa', 'a tela não respondeu ao salvar (1ª etapa)')  # no serviço para aqui com o motivo; no desktop registra e sai
             exit()
 
         # Tempo de controle
@@ -93,7 +94,7 @@ class Correcao(DadosCalculo):
         delay = 10
         try:
             mensagem = WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -106,6 +107,7 @@ class Correcao(DadosCalculo):
                 print('#- ', msg)
         except TimeoutException:
             print('- [Except][Correção/Juros/Multa][2] - Elemento não encontrado/A Página demorou para responder. Encerrando...')
+            interromper('Correção, Juros e Multa', 'a tela não respondeu ao salvar (2ª etapa)')  # no serviço para aqui com o motivo; no desktop registra e sai
             exit()
 
         # Tempo de controle

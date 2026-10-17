@@ -55,7 +55,7 @@ def function_main_vb(driver, value):
                 objInicial = PjecalcPaginaInicial()
 
                 try:
-                    driver.get('http://localhost:9257/pjecalc/pages/principal.jsf?conversationId=11')
+                    driver.get('http://localhost:9257/pjecalc/pages/principal.jsf')  # sem conversationId fixo: o PJe-Calc abre uma conversa nova
                     sleep(5)
                     objInicial.clicar_paginaInicial_pjecalc(driver)
                     sleep(2)

@@ -1,4 +1,4 @@
-from Tools.pendencias import de_relatorio, registrar
+from Tools.pendencias import de_relatorio, registrar, interromper
 import json
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -92,7 +92,7 @@ class Honorarios(DadosCalculo):
         delay = 10
         try:
             mensagem = WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 # print('* Operação realizada com sucesso.')
@@ -238,6 +238,7 @@ class Honorarios(DadosCalculo):
                                 opcao_cobrar.click()
                         else:
                             print('- Devedor - * Nenhuma condição atendida! (Verificar)')
+                            interromper('Honorários', 'devedor do honorário não reconhecido (use RECLAMADO ou RECLAMANTE)')
 
                         # Tempo de controle
                         time.sleep(1)
@@ -402,6 +403,7 @@ class Honorarios(DadosCalculo):
                                 opcao_cobrar.click()
                         else:
                             print('- Devedor - * Nenhuma condição atendida! (Verificar)')
+                            interromper('Honorários', 'devedor do honorário não reconhecido (use RECLAMADO ou RECLAMANTE)')
 
                         # Tempo de controle
                         time.sleep(1)
@@ -611,6 +613,7 @@ class Honorarios(DadosCalculo):
                                 opcao_cobrar.click()
                         else:
                             print('- Devedor - * Nenhuma condição atendida! (Verificar)')
+                            interromper('Honorários', f"devedor do honorário sucumbencial não reconhecido: {self.honorarios_sucumbenciais_devedor_1!r} (use RECLAMADO ou RECLAMANTE)")  # no serviço para aqui com o motivo; no desktop registra e sai
                             exit()
 
                         # Tempo de controle
@@ -668,6 +671,7 @@ class Honorarios(DadosCalculo):
                             
                         else:
                             print('- * Tipo do Valor inválido! Verificar o código.')
+                            interromper('Honorários', 'tipo do valor do honorário não reconhecido (use INFORMADO ou CALCULADO)')
 
 
                         # Tempo de controle

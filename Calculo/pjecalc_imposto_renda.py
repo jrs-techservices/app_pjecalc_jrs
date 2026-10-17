@@ -65,7 +65,7 @@ class ImpostoRenda:
     def _verificar(self, driver):
         try:
             mensagem = WebDriverWait(driver, self.delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69'))).text
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']"))).text
         except TimeoutException:
             registrar("Imposto de Renda", "o PJe-Calc não respondeu ao salvar")
             return

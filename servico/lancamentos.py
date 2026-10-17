@@ -202,12 +202,19 @@ def _dados_do_calculo(r):
             r.usar("dadosDoCalculo.numeroProcesso", "numero_processo", str(numero))
         else:
             r.erro("dadosDoCalculo.numeroProcesso", numero, "número CNJ fora do formato 0000000-00.0000.0.00.0000")
+    vistos = {}
     for i, parte in enumerate(bloco.get("partes") or []):
         polo = str(parte.get("polo", "")).upper()
         sufixo = {"ATIVO": "1", "PASSIVO": "2"}.get(polo)
         if not sufixo:
             r.erro(f"dadosDoCalculo.partes[{i}].polo", parte.get("polo"), "polo não reconhecido", ["ATIVO", "PASSIVO"])
             continue
+        if polo in vistos:
+            # o PJe-Calc tem um reclamante e um reclamado: o 2º do mesmo polo apagaria o 1º sem aviso
+            r.erro(f"dadosDoCalculo.partes[{i}].polo", parte.get("polo"),
+                   f"o PJe-Calc aceita uma parte por polo; o polo {polo} já veio em partes[{vistos[polo]}]")
+            continue
+        vistos[polo] = i
         if parte.get("nome"):
             r.usar("dadosDoCalculo.partes[].nome", f"nome_parte{sufixo}", str(parte["nome"])[:150])
         if parte.get("documento"):
@@ -485,10 +492,21 @@ def _usar_campos_do_honorario(r, n, item, tipo_valor):
             r.ignorar(f"honorarios[{n}].{campo}", f"a tela do honorário {tipo_valor} não tem este campo")
 
 
+def _latin1(r, caminho, texto):
+    """O PJe-Calc grava texto em Latin-1 (travessão e aspas curvas viram '¿'): troca pelo equivalente simples, com aviso."""
+    from servico.verbas_pedido import texto_latin1
+    limpo = texto_latin1(texto)
+    if limpo != texto:
+        r.avisos.append(f"{caminho}: caracteres que o PJe-Calc não grava foram trocados: {texto!r} -> {limpo!r}")
+    return limpo
+
+
 def _honorarios(r):
     itens = r.dados.get("honorarios")
     if itens is None:
         return
+    if itens == []:
+        r.usados.add("honorarios")  # lista vazia é a decisão "não há honorarios": a tela fica sem lançamentos
     informados, calculados = [], []
     for n, item in enumerate(itens):
         base = f"honorarios[{n}]"
@@ -496,17 +514,18 @@ def _honorarios(r):
         if tipo_valor not in ("INFORMADO", "CALCULADO"):
             r.erro(f"{base}.tipoValor", item.get("tipoValor"), "valor não reconhecido", ["INFORMADO", "CALCULADO"])
             continue
-        descricao = str(item.get("descricao") or "").strip()
+        descricao = _latin1(r, f"{base}.descricao", str(item.get("descricao") or "").strip())
         if len(descricao) > 50 and tipo_valor == "INFORMADO":
             r.avisos.append(f"{base}.descricao: tem {len(descricao)} caracteres; no honorário INFORMADO o PJe-Calc guarda os 50 "
                             f"primeiros ({descricao[:50].upper()!r})")
         if not descricao or "-" in descricao:
-            r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória e sem '-' (a automação usa '-' para 'bloco vazio')")
+            r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória e sem '-' nem travessão (a automação usa '-' "
+                                                                "para 'bloco vazio')")
             continue
         tipo = r.enumeracao(f"{base}.tipoHonorario", item.get("tipoHonorario"), TIPOS_HONORARIO)
         devedor = r.enumeracao(f"{base}.tipoDeDevedor", item.get("tipoDeDevedor"), DEVEDOR)
         cobranca = r.enumeracao(f"{base}.tipoCobrancaReclamante", item.get("tipoCobrancaReclamante", "COBRAR"), COBRANCA)
-        credor = str(item.get("nomeCredor") or "")
+        credor = _latin1(r, f"{base}.nomeCredor", str(item.get("nomeCredor") or ""))
         extras = _extras_do_honorario(r, base, item, tipo_valor)
         if extras is None:
             continue
@@ -581,6 +600,8 @@ def _multas(r):
     itens = r.dados.get("multas")
     if itens is None:
         return
+    if itens == []:
+        r.usados.add("multas")  # lista vazia é a decisão "não há multas": a tela fica sem lançamentos
     if len(itens) > 9:
         r.erro("multas", len(itens), "no máximo 9 multas por pedido (limitação da leitura por nome de chave)")
         return
@@ -594,11 +615,11 @@ def _multas(r):
         credor = r.enumeracao(f"{base}.tipoCredorDevedor", item.get("tipoCredorDevedor"), CREDOR_DEVEDOR_MULTA)
         terceiro = "-"
         if credor and credor.startswith("Terceiro"):
-            terceiro = str(item.get("nomeTerceiro") or "").strip() or None
+            terceiro = _latin1(r, f"{base}.nomeTerceiro", str(item.get("nomeTerceiro") or "").strip()) or None
             if terceiro is None:
                 r.erro(f"{base}.nomeTerceiro", item.get("nomeTerceiro"), "nome do terceiro obrigatório quando o credor/devedor é um terceiro")
         cobranca = r.enumeracao(f"{base}.tipoCobrancaReclamante", item.get("tipoCobrancaReclamante", "COBRAR"), COBRANCA)
-        descricao = str(item.get("descricao") or "").strip()
+        descricao = _latin1(r, f"{base}.descricao", str(item.get("descricao") or "").strip())
         if not descricao:
             r.erro(f"{base}.descricao", item.get("descricao"), "descrição obrigatória")
         vencimento, valor, base_multa, aliquota, juros_desde = "-", "-", "-", "-", "-"

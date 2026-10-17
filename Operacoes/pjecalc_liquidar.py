@@ -34,7 +34,7 @@ class Liquidar:
         delay = 10
         try:
             mensagem = WebDriverWait(driver, delay).until(
-                EC.presence_of_element_located((By.ID, 'formulario:painelMensagens:j_id69')))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "table[id^='formulario:painelMensagens:']")))
             msg = mensagem.text
             if 'Operação realizada com sucesso.' in msg:
                 print('* Operação realizada com sucesso.')
@@ -49,6 +49,7 @@ class Liquidar:
         except TimeoutException:
             print(
                 '* Exceção - Verificação -  A Página demorou para responder ou o elemento não foi encontrado. Encerrando...')
+            interromper('Liquidar', 'a tela não respondeu ao liquidar')  # no serviço para aqui com o motivo; no desktop registra e sai
             exit()
 
         # Tempo de controle
