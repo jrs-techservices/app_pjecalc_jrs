@@ -79,7 +79,7 @@ def _sim_nao(valor):
 TELA_DO_CAMINHO = [
     (("dadosDoCalculo", "telas.dados-do-calculo", "advogados", "parametrosDoCalculo", "processo"), "Dados do Cálculo"),
     (("arquivos.faltas",), "Faltas"), (("arquivos.ferias",), "Férias"), (("arquivos.historico-salarial",), "Histórico Salarial"),
-    (("arquivos.cartao-de-ponto", "telas.cartao-de-ponto"), "Cartão de Ponto"),
+    (("arquivos.cartao-de-ponto", "telas.cartao-de-ponto", "cartaoDePonto"), "Cartão de Ponto"),
     (("verbas", "reflexosManuais"), "Verbas"),
     (("telas.salario-familia",), "Salário-família"), (("telas.seguro-desemprego",), "Seguro-desemprego"),
     (("fgts", "telas.fgts", "fgtsSaldoSaque"), "FGTS"),
@@ -1992,6 +1992,8 @@ def interpretar(caminho):
     _data_liquidacao(r)
     _advogados(r)
     _arquivos(r, caminho)
+    from servico.criterios_cartao import _cartao_de_ponto
+    _cartao_de_ponto(r)  # depois de _arquivos: os critérios só valem com o arquivo do cartão
     if "cont_social_aliquota_empregador" in r.valores:
         # A CNAE só é lida quando a leitura chega em entidade_filantropica; sem valor, nenhuma das três opções é marcada.
         for gatilho in ("processo_de_agroindustria", "empresa_enquadrada_simples", "empresa_com_desoneracao", "entidade_filantropica"):
@@ -2000,7 +2002,7 @@ def interpretar(caminho):
     interpretar_verbas(r)
     # ignorados por item (honorarios[0].dataVencimento) já contam como tratados
     tratados = {re.sub(r"\[\d+\]", "[]", k) for k in r.ignorados}
-    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo", "fgtsSaldoSaque")}):
+    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo", "fgtsSaldoSaque", "cartaoDePonto")}):
         if folha and folha not in META and folha not in r.usados and folha not in tratados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r

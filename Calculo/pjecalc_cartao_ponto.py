@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import time
@@ -17,7 +18,7 @@ from Tools.pjecalc_control import Control
 class CartaoPonto:
     """Tela Cartão de Ponto a partir de arquivos.cartao-de-ponto do .json (chaves cartao_ponto_* da PJE-BD).
 
-    Critérios de Apuração com o padrão do PJe-Calc no período das batidas → Grade de Ocorrências › Importar Jornada
+    Critérios de Apuração (os do pedido, cartaoDePonto.criterios; sem eles, o padrão do PJe-Calc) no período das batidas → Grade de Ocorrências › Importar Jornada
     (o .csv no layout do ExemploJornadaCartaoDePonto.csv) → Visualizar Cartão › Apurar. As verbas com divisor ou
     quantidade "Importada do Cartão de Ponto" leem as colunas dessa apuração (Dias Trabalhados, Hs EXT, Hs Trabalhadas).
     Sem o arquivo, a tela não é aberta. Qualquer recusa do PJe-Calc interrompe: as verbas do cartão sairiam zeradas.
@@ -81,6 +82,81 @@ class CartaoPonto:
         self._data(driver, "competenciaFinalInputDate", fim)
         return inicio, fim
 
+    def _aplicar_criterios(self, driver, ops):
+        """Critérios de Apuração do .json (cartaoDePonto.criterios), já validados na porta: rádios, caixas, campos e
+        listas em ordem. Campo desabilitado ou que não ficou como pedido interrompe (a apuração sairia com outro critério)."""
+        rotulo = lambda e: driver.execute_script(
+            "const l = document.querySelector(`label[for='${arguments[0].id}']`); return l ? l.textContent.trim() : '';", e)
+        # em fases: rádios e caixas disparam ajax que redesenha painéis e apaga o que foi só digitado (visto nos tempos do
+        # art. 253); listas e textos vêm depois, quando nada mais redesenha. Dentro da fase, a ordem da porta (dependências).
+        fase = {"radio": 0, "caixa": 1, "lista": 2, "texto": 3}
+        ops = sorted(ops, key=lambda op: fase[op[0]])
+        for tipo, alvo, valor in ops:
+            if tipo == "radio":
+                opcoes = driver.find_elements(By.CSS_SELECTOR, f"input[type=radio][id^='formulario:{alvo}:']")
+                escolhido = next((e for e in opcoes if rotulo(e) == valor), None)
+                if escolhido is None:
+                    interromper(self.TELA, f"critério '{valor}' não existe na tela")
+                    return False
+                if not escolhido.is_selected():
+                    driver.execute_script("arguments[0].click();", escolhido)
+                    self.objTools.aguardar_carregamento(driver)
+                    time.sleep(1.5)
+                continue
+            elementos = driver.find_elements(By.ID, f"formulario:{alvo}")
+            if not elementos:
+                interromper(self.TELA, f"critério '{alvo}' não está na tela")
+                return False
+            campo = elementos[0]
+            if tipo == "caixa":
+                if campo.is_selected() == valor:
+                    continue
+                if not campo.is_enabled():
+                    interromper(self.TELA, f"critério '{alvo}' desabilitado na tela; não foi possível {'marcar' if valor else 'desmarcar'}")
+                    return False
+                driver.execute_script("arguments[0].click();", campo)
+                self.objTools.aguardar_carregamento(driver)
+                time.sleep(1.5)
+                continue
+            if not campo.is_enabled():
+                interromper(self.TELA, f"critério '{alvo}' desabilitado na tela; valor {valor!r} não aplicado")
+                return False
+            if tipo == "lista":
+                opcoes = [o.text.strip() for o in Select(campo).options]
+                if valor not in opcoes:
+                    interromper(self.TELA, f"critério '{alvo}': opção {valor!r} não existe na tela (há: {', '.join(o for o in opcoes if o)})")
+                    return False
+                Select(campo).select_by_visible_text(valor)
+            else:
+                campo.click()
+                campo.send_keys(Keys.CONTROL, "a")
+                campo.send_keys(Keys.DELETE)
+                campo.send_keys(valor)
+                campo.send_keys(Keys.TAB)
+            self.objTools.aguardar_carregamento(driver)
+            time.sleep(0.5)
+        # um clique pode desfazer outro e um redesenho pode apagar um valor: confere o estado final antes de salvar
+        for tipo, alvo, valor in ops:
+            if tipo in ("texto", "lista"):
+                campo = driver.find_element(By.ID, f"formulario:{alvo}")
+                atual = Select(campo).first_selected_option.text.strip() if tipo == "lista" else campo.get_attribute("value").strip()
+                if atual != valor:
+                    interromper(self.TELA, f"critério '{alvo}' ficou {atual!r} em vez de {valor!r}")
+                    return False
+            elif tipo == "caixa":
+                atual = driver.find_element(By.ID, f"formulario:{alvo}").is_selected()
+                if atual != valor:
+                    interromper(self.TELA, f"critério '{alvo}' não ficou {'marcado' if valor else 'desmarcado'}")
+                    return False
+            elif tipo == "radio":
+                marcado = [rotulo(e) for e in driver.find_elements(By.CSS_SELECTOR, f"input[type=radio][id^='formulario:{alvo}:']")
+                           if e.is_selected()]
+                if marcado != [valor]:
+                    interromper(self.TELA, f"critério '{valor}' não ficou marcado (marcado: {', '.join(marcado) or 'nenhum'})")
+                    return False
+        print(f"- [{self.TELA}] critérios do pedido aplicados: {len(ops)} campo(s)")
+        return True
+
     def main_cartao_ponto(self, driver):
         print('\n# ========== [CARTAO_DE_PONTO] ========== #\n')
         pedido = self._pedido()
@@ -94,6 +170,9 @@ class CartaoPonto:
         self._clicar(driver, By.CLASS_NAME, "menuImageCartaoPonto")
         self._clicar(driver, By.ID, "formulario:incluir")
         inicio, fim = self._periodo(driver, inicio, fim)
+        criterios = pedido.get("cartao_ponto_criterios")
+        if criterios and not self._aplicar_criterios(driver, json.loads(criterios)):
+            return
         self._clicar(driver, By.ID, "formulario:salvar")
         if not self._conferir(driver, f"critérios de apuração ({inicio} a {fim})"):
             return

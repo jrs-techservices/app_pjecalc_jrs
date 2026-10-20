@@ -420,8 +420,42 @@ dentro das pastas permitidas. Arquivo inexistente ou com linha inválida: `400 l
   saída, hora fora de `HH:MM`, data inválida, cabeçalho diferente do exemplo (acento e BOM são indiferentes), arquivo sem dias.
   Mostra as 5 primeiras linhas e o total. Verba com divisor ou quantidade `IMPORTADA_DO_CARTAO` sem `arquivos.cartao-de-ponto`
   também é `400`.
+- **`cartaoDePonto.criterios`** (raiz do `.json`; implementado em 20/10/2026): os Critérios de Apuração da tela Cartão de
+  Ponto › Novo. Campo ausente = padrão da tela; lista fechada (campo desconhecido = `400`); só vale com
+  `arquivos.cartao-de-ponto` (sem ele vai para `ignorados`). A automação aplica rádios e caixas, depois listas e textos, e
+  confere tudo antes de salvar — o que não ficar como pedido interrompe a execução.
+
+  | campo | valor | regra (a tela desabilita fora dela) |
+  |---|---|---|
+  | `formaApuracao` | `NAO_APURAR` · `EXCEDENTE_DIARIA` · `MAIS_FAVORAVEL` (padrão) · `SUMULA_85` · `PRIMEIRAS_EM_SEPARADO` · `EXCEDENTE_SEMANAL` · `EXCEDENTE_MENSAL` | |
+  | `qtHorasSumula85` · `qtPrimeirasHorasSeparado` | `"HH:MM"` (padrão 02:00) | só com `SUMULA_85` / `PRIMEIRAS_EM_SEPARADO` |
+  | `considerarFeriados` | bool (**padrão marcada**: mande `false` para desligar) | |
+  | `extrasFeriadosSeparado` · `extrasDomingosSeparado` · `extrasSabadosDomingosSeparado` | bool | não com `NAO_APURAR`; feriados exige `considerarFeriados`; domingos × sábados e domingos: só um |
+  | `toleranciaPorTurno` · `toleranciaPorDia` | `"HH:MM"` (00:05 · 00:10) | ligam a caixa Tolerância (`tolerancia: true` sem valores = padrões) |
+  | `jornadaDiaria` `{seg…dom}` | `"HH:MM"` | o padrão vem da carga horária do cálculo |
+  | `jornadaSemanal` · `jornadaMensal` | número decimal (vai `44,00`) | |
+  | `jornadaDiariaFeriadosTrabalhados` · `…NaoTrabalhados` · `apurarFeriadosTrabalhados` | bool | exigem `considerarFeriados` |
+  | `apurarFeriadosTrabalhados` · `apurarDomingosTrabalhados` · `apurarSabadosDomingosTrabalhados` | bool | só um |
+  | `intervaloArt384` · `intervaloArt72` · `intervaloInsalubridade` | bool | só um; `art253 {trabalho, descanso}` (`"HH:MM"`) só com insalubridade |
+  | `interjornadas` | `10:00` · `11:00` · `12:00` · `14:00` · `17:00` (ou `true` = 11:00) | liga a caixa |
+  | `entreSemanas` | o próprio `interjornadas` ou ele + 24h (11:00 → `35:00`/`11:00`; 12:00 → `36:00`/`12:00`) | só com `interjornadas` |
+  | `intrajornada4a6` · `intrajornadaAcima6` | `"HH:MM"` (00:15 · 01:00) ou `true` | ligam a caixa; `toleranciaIntrajornadaAcima6` só com acima de 6 |
+  | `fracionamentoIntrajornadaValido` · `supressaoIntrajornadaIntegral` · `supressaoIntrajornadaArt71par4` | bool | com qualquer intrajornada |
+  | `excessoIntrajornadaSumula118` · `intervaloIntrajornadaMaximo` (`"HH:MM"`, 02:00) | bool · hora | só com `intrajornadaAcima6`; `apenasExcessoAlemDaJornada` exige o excesso |
+  | `horarioNoturno` | `AGRICOLA` · `PECUARIA` · `URBANA` (padrão) | |
+  | `apurarHorasNoturnas` · `apurarExtrasNoturnas` | bool | extras exige horas noturnas **e** `EXCEDENTE_DIARIA` |
+  | `reducaoFictaNoturna` | bool (**padrão marcada**) | só com horário `URBANA` |
+  | `prorrogacaoSumula60` · `forcarProrrogacao` | bool | forçar exige a Súmula 60 |
+
+- **Colunas que os critérios acrescentam** (texto exato do seletor da verba, testado na 2.16): sempre `Hs Trabalhadas` e
+  `Dias Trabalhados`; `Hs EXT` em toda forma menos `NAO_APURAR`; `SUMULA_85` → `Adicional Súmula 85`; `PRIMEIRAS_EM_SEPARADO`
+  → `Primeiras Hs Ext em Separado`; noturnas → `Hs Noturnas`, `Hs Ext Noturnas` (e `Hs Ext Noturnas em Repousos` com
+  domingos em separado); domingos/sábados e domingos em separado → `Hs Ext Diárias em Repousos`; feriados em separado →
+  `Hs Ext Diárias em Feriados` (com os dois: também `Hs Ext em Repousos e Feriados`); domingos ou sábados e domingos
+  trabalhados → `Repousos Trabalhados`; feriados trabalhados → `Feriados Trabalhados`; `Hs Art 384` · `Hs Art 72` ·
+  `Hs Insalubres`; intrajornada → `Hs Intrajornada`; Súmula 118 → `Exc Int Intrajornada`; interjornadas → `Hs Interjornadas`.
 - **Colunas da apuração com os critérios padrão**: `Dias Trabalhados` · `Hs EXT` · `Hs Trabalhadas` (outros critérios, ainda
-  não lidos do `.json`, acrescentam colunas). A tela `telas.cartao-de-ponto` (critérios) segue em `ignorados`.
+  não lidos do `.json`, acrescentam colunas). Os critérios vêm de `cartaoDePonto.criterios` (acima); `telas.cartao-de-ponto` segue em `ignorados`.
 
 - **Histórico: o que o PJe-Calc 2.16.0 aceita na importação** (testado na tela em 07/10/2026; a porta espelha isto):
   - competência **`MM/AAAA`** (`02/2018`). `fev/18` é **recusado pelo próprio PJe-Calc**: *"Valor inválido para data. A data
