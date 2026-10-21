@@ -229,7 +229,7 @@ Exemplo — ADC 58 + Lei 14.905/2024, ajuizamento 19/02/2024: `cj_correcao` `"IP
 
 
 **Não lido ainda** (vai para `ignorados`, o pedido segue): o bloco `verbas` ("próxima fase"); as telas
-`salario-familia`, `seguro-desemprego`, `previdencia-privada`, `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`
+`salario-familia`, `seguro-desemprego`, `previdencia-privada` (use os blocos `seguroDesemprego`/`previdenciaPrivada` da raiz), `pensao-alimenticia`, `imposto-de-renda` e `cartao-de-ponto`
 ("tela ainda não automatizada"); qualquer outro campo ("campo não reconhecido" / "campo sem correspondente na automação").
 
 ### `telas.fgts`: a tela inteira (implementado em 14/10/2026)
@@ -299,6 +299,27 @@ agroindústria/desoneração/filantrópica (ou Simples), a planilha prevalece.
 Com `ir_apurar = false` a tela desabilita todas as outras: mandá-las junto → `400`. Campo ausente fica no padrão da tela
 (Apurar e as quatro deduções marcadas; o resto desmarcado). Sem nenhuma chave `ir_*`, a tela não é tocada. As chaves do
 formato antigo (`ir_regime`, `ir_exclusiva`, `ir_deducoes`, em texto) vão para `ignorados`.
+
+### `seguroDesemprego` e `previdenciaPrivada` (raiz do `.json`; implementado em 21/10/2026)
+
+Campo ausente = padrão da tela; campo desconhecido = `400`. As duas telas rodam depois das Verbas, antes da liquidação; o
+que a tela recusar ou não deixar como pedido interrompe a execução.
+
+| `seguroDesemprego.` | valor | regra |
+|---|---|---|
+| `apurar` | bool | sem `true`, nenhum outro campo |
+| `empregadoDomestico` | bool | a tela só mostra em alguns cálculos (se não mostrar, interrompe) |
+| `tipoSolicitacao` | `PRIMEIRA` · `SEGUNDA` · `DEMAIS` | idem |
+| `tipoValor` | `INFORMADO` · `CALCULADO` (padrão) | |
+| `comporPrincipal` | bool | padrão: Sim |
+| `valor` | número | **obrigatório** com `INFORMADO`; só nele |
+| `parcelas` | inteiro 1–10 | só com `CALCULADO` |
+| `salariosPagos` | `{ tipo: NENHUM \| ULTIMA_REMUNERACAO \| MAIOR_REMUNERACAO \| HISTORICO_SALARIAL, historicos: [nomes] }` | só `CALCULADO` e não doméstico; `historicos` **obrigatório** com `HISTORICO_SALARIAL` (nomes dos `arquivos.historico-salarial`). A lista de tipos varia com o cálculo (no teste não havia Última Remuneração) |
+| `salariosDevidos` | `[{ verba: <verbas[].id>, integralizar: bool }]` | só `CALCULADO` e não doméstico; verba do pedido, sem repetir |
+
+`previdenciaPrivada`: `{ apurar: bool, aliquotas: [{ competenciaInicial: "AAAA-MM", competenciaFinal: "AAAA-MM", aliquota: % }] }`
+— `aliquotas` obrigatória com `apurar: true` (e só com ele); final ≥ inicial; sem sobreposição; inicial não antes do mês da
+admissão (a tela recusa); alíquota em percentual (5 = 5%). Cada período entra na lista da tela pelo "+".
 
 ### `multas[]`: correção monetária própria da multa INFORMADA (implementado em 16/10/2026)
 

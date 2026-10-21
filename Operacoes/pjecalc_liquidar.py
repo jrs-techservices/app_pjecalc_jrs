@@ -42,8 +42,12 @@ class Liquidar:
             else:
                 print('* ERRO!', msg)
                 gerar_relatorio('Liquidar', '---------- Erro! ----------')
-                # Sem liquidar não há relatório: no serviço a execução termina como `falhou`, com a mensagem do PJe-Calc.
-                interromper('Liquidar', msg)
+                # Sem liquidar não há relatório: no serviço a execução termina como `falhou`, com a mensagem do PJe-Calc
+                # e as pendências do tipo Erro que a própria tela lista (a mensagem sozinha não diz qual é).
+                erros = driver.execute_script("""return [...document.querySelectorAll('.boxItemValidacao .validacaoErro')]
+                    .map(e => e.textContent.trim().replace(/\\s+/g, ' ')).filter(t => t);""")
+                print('* PENDÊNCIAS DE ERRO:', erros)
+                interromper('Liquidar', f"{' '.join(msg.split())} Pendências: {' | '.join(erros)}" if erros else msg)
                 # exit() -> Antes
                 pass
         except TimeoutException:

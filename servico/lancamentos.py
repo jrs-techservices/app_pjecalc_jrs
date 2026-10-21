@@ -81,10 +81,10 @@ TELA_DO_CAMINHO = [
     (("arquivos.faltas",), "Faltas"), (("arquivos.ferias",), "Férias"), (("arquivos.historico-salarial",), "Histórico Salarial"),
     (("arquivos.cartao-de-ponto", "telas.cartao-de-ponto", "cartaoDePonto"), "Cartão de Ponto"),
     (("verbas", "reflexosManuais"), "Verbas"),
-    (("telas.salario-familia",), "Salário-família"), (("telas.seguro-desemprego",), "Seguro-desemprego"),
+    (("telas.salario-familia",), "Salário-família"), (("telas.seguro-desemprego", "seguroDesemprego"), "Seguro-desemprego"),
     (("fgts", "telas.fgts", "fgtsSaldoSaque"), "FGTS"),
     (("telas.contribuicao-social", "contribuicaoSocial", "arquivos.base-inss"), "Contribuição Social"),
-    (("telas.previdencia-privada",), "Previdência Privada"), (("telas.pensao-alimenticia",), "Pensão Alimentícia"),
+    (("telas.previdencia-privada", "previdenciaPrivada"), "Previdência Privada"), (("telas.pensao-alimenticia",), "Pensão Alimentícia"),
     (("telas.imposto-de-renda",), "Imposto de Renda"),
     (("multas", "telas.multas"), "Multas e Indenizações"), (("honorarios", "telas.honorarios"), "Honorários"),
     (("custas", "telas.custas-judiciais"), "Custas Judiciais"), (("telas.correcao-juros-multa",), "Correção, Juros e Multa"),
@@ -2000,9 +2000,11 @@ def interpretar(caminho):
             r.valores.setdefault(gatilho, "<nao_preenchido>")
     from servico.verbas_pedido import interpretar_verbas
     interpretar_verbas(r)
+    from servico.seguro_previdencia import interpretar_seguro_e_previdencia
+    interpretar_seguro_e_previdencia(r)  # depois das verbas e dos históricos, que ele referencia
     # ignorados por item (honorarios[0].dataVencimento) já contam como tratados
     tratados = {re.sub(r"\[\d+\]", "[]", k) for k in r.ignorados}
-    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo", "fgtsSaldoSaque", "cartaoDePonto")}):
+    for folha in _folhas({k: v for k, v in dados.items() if k not in ("telas", "verbas", "arquivos", "reflexosManuais", "advogados", "contribuicaoSocial", "parametrosDoCalculo", "fgtsSaldoSaque", "cartaoDePonto", "seguroDesemprego", "previdenciaPrivada")}):
         if folha and folha not in META and folha not in r.usados and folha not in tratados and not folha.endswith("contrato"):
             r.ignorar(folha, "campo não reconhecido")
     return r

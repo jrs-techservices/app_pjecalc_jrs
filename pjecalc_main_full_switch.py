@@ -20,6 +20,7 @@ from Calculo.pjecalc_multas_e_indenizacoes import MultasIndenizacoes
 from Calculo.pjecalc_honorarios import Honorarios
 from Calculo.pjecalc_custas_judiciais import Custas
 from Calculo.pjecalc_correcao_juros_multa import Correcao
+from Calculo.pjecalc_seguro_previdencia import SeguroPrevidencia
 from Operacoes.pjecalc_liquidar import Liquidar
 from Operacoes.pjecalc_imprimir import Imprimir
 from Operacoes.pjecalc_exportar import Exportar
@@ -181,6 +182,13 @@ def function_main(driver, value):
 
                 # ---------- PJeCalc - Menu ---------- #
                 # objMenu.acessar_operacoes(driver)
+
+                # ---------- PJeCalc - Seguro-desemprego e Previdência Privada (só com os blocos do .json) ---------- #
+                # depois das Verbas: os salários devidos do seguro escolhem verbas já lançadas
+                objeto_seg_prev = SeguroPrevidencia(locale_plabase)
+                objeto_seg_prev.main_seguro_desemprego(driver)
+                objeto_seg_prev.main_previdencia_privada(driver)
+                objTools.limparFilesTemp()
 
                 # ---------- PJeCalc - Liquidar ---------- #
                 objeto_liquidar = Liquidar(locale_plabase)
