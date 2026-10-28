@@ -211,6 +211,7 @@ def _parametros_comuns(ler, linha):
         ler.erro("periodo", "deve ser { inicio, termino } em AAAA-MM-DD")
     linha["DDTINICIO"] = ler.data("periodo.inicio")
     linha["DDTTERMINO"] = ler.data("periodo.termino")
+    _conferir_prescricao(ler, linha["DDTINICIO"])
     if valor == "INFORMADO":
         linha["RVLVALORDEVIDO"] = ler.numero("valorDevido", obrigatorio=True)
         linha["SFLPROPORCIONALIDADE"] = _sn(ler.booleano("proporcionalidade"))
@@ -245,6 +246,23 @@ def _coluna_do_cartao(ler, campo, tipo):
                                     "(ou `colunas`, uma lista de textos)", COLUNAS_DO_CARTAO_PADRAO)
         return None
     return "|".join(" ".join(c.split()) for c in lista)
+
+
+def _conferir_prescricao(ler, inicio):
+    """Com a prescrição quinquenal, o PJe-Calc recusa a verba que começa antes de 5 anos do ajuizamento: "A data de início
+    informada não pode ser anterior à data da prescrição quinquenal (5 anos antes da Data do Ajuizamento)" (17584, 28/10/2026)."""
+    from datetime import datetime, timedelta
+    ajuizamento = ler.r.valores.get("data_ajuizamento")
+    if not inicio or ler.r.valores.get("aplicar_prescricao_verbas") != "True" or not isinstance(ajuizamento, int):
+        return
+    data = datetime(1899, 12, 30) + timedelta(days=ajuizamento)
+    try:
+        limite = data.replace(year=data.year - 5)
+    except ValueError:  # 29/02
+        limite = data.replace(year=data.year - 5, day=28)
+    if datetime.strptime(inicio, "%d/%m/%Y") < limite:
+        ler.erro("periodo.inicio", f"anterior à prescrição quinquenal ({limite:%d/%m/%Y}, 5 anos antes do ajuizamento): "
+                                   f"o PJe-Calc recusa a verba; use {limite:%Y-%m-%d} ou depois")
 
 
 def _divisor_quantidade(ler, linha, caracteristica):

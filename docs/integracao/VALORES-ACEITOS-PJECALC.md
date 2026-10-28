@@ -761,7 +761,7 @@ Vocabulário único: **o código do XML do `.PJC`**. Valor fora da lista → `40
 | `jurosSumula439` · `comporPrincipal` · `zerarValorNegativo` · `dobrarValor` | booleanos | |
 | `excluirFaltaJustificada` · `excluirFaltaNaoJustificada` · `excluirFeriasGozadas` | booleanos | exclusões do Valor Devido; ausentes = padrão do Expresso (nas horas extras, as três marcadas) |
 | `geraReflexo` · `gerarPrincipal` | `DEVIDO` · `DIFERENCA` | |
-| `periodo` | `{ inicio, termino }` em `AAAA-MM-DD` | |
+| `periodo` | `{ inicio, termino }` em `AAAA-MM-DD` | com `prescricao_quinquenal` ligada, `inicio` não pode ser anterior a ajuizamento − 5 anos (o PJe-Calc recusa a verba): `400` com a data mínima |
 | `valorDevido` | número | só com `valor` = `INFORMADO` (aí é obrigatório) |
 | `proporcionalidade` | booleano | "Proporcionalizar" do Valor Devido (o devido no mês incompleto), com `INFORMADO` ou `CALCULADO`; ausente = padrão do Expresso |
 | `baseTabelada` | `HISTORICO_SALARIAL` · `MAIOR_REMUNERACAO` · `PISO_SALARIAL` · `SALARIO_MINIMO` · `VALE_TRANSPORTE` | só com `CALCULADO` |

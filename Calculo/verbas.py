@@ -219,6 +219,11 @@ class Verbas:
 
         sleep(2)
 
+    def _erros_de_campo(self, driver):
+        erros = driver.execute_script("""return [...document.querySelectorAll('[id$="Erro"]')]
+            .map(e => e.textContent.split('//<!')[0].trim()).filter(t => t);""")
+        return f" Campos: {' | '.join(dict.fromkeys(erros))}" if erros else ""
+
     def verificacao_2_new(self, driver):
 
         def gerar_relatorio(campo, msg, status):
@@ -238,7 +243,9 @@ class Verbas:
                 gerar_relatorio("Verbas", "--", "Ok")
             elif 'erro' in alertaMensagem[0]:
                 gerar_relatorio("Verbas", f"{alertaMensagem[0]}", "---------- Erro! ----------")
-                interromper("Verbas", f"'{getattr(self, 'verba_atual', '')}' recusada ao salvar: {alertaMensagem[0]}")
+                # "Existem erros no formulário" sozinho não diz qual campo: junta a mensagem de cada campo recusado
+                interromper("Verbas", f"'{getattr(self, 'verba_atual', '')}' recusada ao salvar: {alertaMensagem[0].strip()}"
+                                      + self._erros_de_campo(driver))
                 self.mensagem_alert_frontend(driver, alertaMensagem[0])
                 self.click_BtnCancelar(driver)
                 self.objTools.aguardar_carregamento(driver)
@@ -1775,11 +1782,7 @@ class Verbas:
                     parcela = self.planilha_basecalculo_exp_hs.loc[i, 'PARCELA']
                     prop_int = self.planilha_basecalculo_exp_hs.loc[i, 'PROP/INT']
                     # print(f"|# {tipo_base} |# PARCELA: {parcela} |# PROP/INT: {prop_int} |# FK: {fk_col} |# ID: {iidverbajrs}")
-                    self.selecionar_historicoSalarial(driver, parcela)
-                    self.selecionar_historicoSalarial_proporcionalizar(driver, prop_int)
-                    self.click_btnIncluir(driver)
-                    self.objTools.aguardar_carregamento(driver)
-                    sleep(1)
+                    self.incluir_base_historico(driver, parcela, prop_int)
 
                     del parcela
                     del prop_int
@@ -1789,6 +1792,62 @@ class Verbas:
 
             del fk_col
             del tipo_base
+
+    def _linhas_bases_historico(self, driver):
+        return driver.execute_script("""const t = document.getElementById('formulario:listagemHistoricosDaVerba');
+            return t ? [...t.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\\s+/g, ' ').trim().toUpperCase()) : [];""")
+
+    def _base_incluida(self, driver, historico):
+        # linha da tabela: "<HISTÓRICO> SIM|NÃO" (a 1ª linha é o cabeçalho "AÇÃO HISTÓRICO SALARIAL PROPORCIONALIZAR")
+        return any(linha.rsplit(" ", 1)[0] == historico and linha.rsplit(" ", 1)[-1] in ("SIM", "NÃO")
+                   for linha in self._linhas_bases_historico(driver))
+
+    def _escolher_com_ajax(self, driver, campo, texto):
+        """Os selects da base mandam o valor ao servidor por ajax no onchange, e o "+" (immediate) inclui o que o servidor já
+        tem: escolhe passando por outra opção (o onchange dispara mesmo se o texto já estiver escolhido) e espera o ajax."""
+        seletor = Select(WebDriverWait(driver, self.delay).until(EC.visibility_of_element_located((By.ID, f"formulario:{campo}"))))
+        opcoes = [o.text.strip() for o in seletor.options]
+        if texto not in opcoes:
+            return opcoes
+        outra = next((o for o in opcoes if o != texto), None)
+        if outra is not None:
+            seletor.select_by_visible_text(outra)
+            self.objTools.aguardar_carregamento(driver)
+            sleep(0.5)
+            seletor = Select(driver.find_element(By.ID, f"formulario:{campo}"))
+        seletor.select_by_visible_text(texto)
+        self.objTools.aguardar_carregamento(driver)
+        sleep(0.8)
+        return None
+
+    def incluir_base_historico(self, driver, parcela, prop_int):
+        """Base Histórico Salarial da verba: escolhe o histórico e o proporcionalizar, espera o ajax de cada um, clica no "+" e
+        confere que a linha entrou na tabela. Até 3 tentativas; sem a linha, interrompe (a verba seria recusada ao salvar com
+        "Existem erros no formulário", sem dizer por quê — 17584, 28/10/2026)."""
+        historico = str(parcela).strip().upper()
+        proporcionalizar = {'S': 'Sim', 'N': 'Não'}.get(prop_int, prop_int)
+        print(f"- [Base] histórico '{historico}', proporcionalizar {proporcionalizar}")
+        verba = getattr(self, 'verba_atual', '')
+        for tentativa in range(1, 4):
+            if self._base_incluida(driver, historico):
+                print(f"- [Base] '{historico}' incluída" + (f" (tentativa {tentativa - 1})" if tentativa > 1 else ""))
+                return
+            faltando = self._escolher_com_ajax(driver, "baseHistoricos", historico)
+            if faltando is not None:
+                interromper("Verbas", f"'{verba}': o histórico salarial '{historico}' não está na lista da base "
+                                      f"(há: {', '.join(o for o in faltando if o) or 'nenhum'})")
+                return
+            self._escolher_com_ajax(driver, "proporcionalizaHistorico", proporcionalizar)
+            WebDriverWait(driver, self.delay).until(EC.element_to_be_clickable((By.ID, 'formulario:incluirBaseHistorico'))).click()
+            self.objTools.aguardar_carregamento(driver)
+            sleep(1)
+        if self._base_incluida(driver, historico):
+            print(f"- [Base] '{historico}' incluída (tentativa 3)")
+            return
+        mensagem = driver.execute_script("""return [...document.querySelectorAll('[id^="formulario:painelMensagens"] table, .rich-message-label')]
+            .map(e => e.textContent.split('//<!')[0].trim().replace(/\\s+/g, ' ')).filter(t => t).join(' | ');""")
+        interromper("Verbas", f"'{verba}': a base '{historico}' não foi incluída depois de 3 tentativas"
+                              + (f" ({mensagem})" if mensagem else ""))
 
     def selecionar_historicoSalarial(self, driver, valor):
 
