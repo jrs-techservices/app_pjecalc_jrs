@@ -1586,6 +1586,7 @@ class Verbas:
 
         print("- VERBA REFLEXA: ", verba_principal)
 
+        achado = False
         if valor == "S":
             try:
                 elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
@@ -1598,6 +1599,7 @@ class Verbas:
                             print(f"- [STATUS]: [ITEM_LOCALIZADO]")
                             field_checkbox = item.find_element(By.XPATH, './/td[@class="rich-table-cell colunaReflexo"]//input')
                             field_checkbox.click()
+                            achado = True
                             break
                         else:
                             continue
@@ -1638,9 +1640,15 @@ class Verbas:
         # except TimeoutException:
         #     return -1
 
+
+        # pedido e não oferecido pelo Expresso: -1 leva ao reflexo manual da TBREFLEXA (ou à interrupção, sem ele)
+        if valor == "S" and not achado:
+            print("- [STATUS]: reflexo não oferecido pelo Expresso desta verba")
+            return -1
         del valor
 
     # SFLREFLEXOART477CLT
+
     def marcar_sflreflexoart477clt(self, driver, valor, snmdescricaoverba):
 
         # indice = 0
@@ -1651,6 +1659,7 @@ class Verbas:
 
         print("- VERBA REFLEXA: ", verba_principal)
 
+        achado = False
         if valor == "S":
             try:
                 elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
@@ -1663,6 +1672,7 @@ class Verbas:
                             print(f"- [STATUS]: [ITEM_LOCALIZADO]")
                             field_checkbox = item.find_element(By.XPATH, './/td[@class="rich-table-cell colunaReflexo"]//input')
                             field_checkbox.click()
+                            achado = True
                             break
                         else:
                             continue
@@ -1700,9 +1710,15 @@ class Verbas:
         # except TimeoutException:
         #     return -1
 
+
+        # pedido e não oferecido pelo Expresso: -1 leva ao reflexo manual da TBREFLEXA (ou à interrupção, sem ele)
+        if valor == "S" and not achado:
+            print("- [STATUS]: reflexo não oferecido pelo Expresso desta verba")
+            return -1
         del valor
 
     # SFLREFLEXOART467CLT - Parei Aqui
+
     def marcar_sflreflexoart467clt(self, driver, valor, snmdescricaoverba):
 
         # - MULTA DO ARTIGO 467 DA CLT SOBRE 13º SALÁRIO
@@ -1713,6 +1729,7 @@ class Verbas:
         verba_principal = verba_principal.upper()
         print("- VERBA REFLEXA: ", verba_principal)
 
+        achado = False
         if valor == "S":
             try:
                 elementos = WebDriverWait(driver, 3).until(EC.presence_of_all_elements_located((By.XPATH, f'//tbody[@id="formulario:listagem:{self.indice_verba_expandida}:listaReflexo:tb"]//tr')))
@@ -1725,6 +1742,7 @@ class Verbas:
                             print(f"- [STATUS]: [ITEM_LOCALIZADO]")
                             field_checkbox = item.find_element(By.XPATH, './/td[@class="rich-table-cell colunaReflexo"]//input')
                             field_checkbox.click()
+                            achado = True
                             break
                         else:
                             continue
@@ -1763,11 +1781,17 @@ class Verbas:
         # except TimeoutException:
         #     return -1
 
+
+        # pedido e não oferecido pelo Expresso: -1 leva ao reflexo manual da TBREFLEXA (ou à interrupção, sem ele)
+        if valor == "S" and not achado:
+            print("- [STATUS]: reflexo não oferecido pelo Expresso desta verba")
+            return -1
         del valor
 
 
     # --- OUTRAS FUNCIONALIDADES
     # ADICIONAR BASES HISTÓRICO SALARIAL - DEVIDO
+
     def incluir_bases_HistoricoSalarial(self, driver, iidverbajrs):
 
         print("- TAMANHO DA PLANILHA BASE: ", len(self.planilha_basecalculo_exp_hs))
