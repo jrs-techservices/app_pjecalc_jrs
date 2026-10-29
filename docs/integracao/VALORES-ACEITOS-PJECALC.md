@@ -751,7 +751,7 @@ Vocabulário único: **o código do XML do `.PJC`**. Valor fora da lista → `40
 | campo | tipo / valores | regra |
 |---|---|---|
 | `id` | texto ou número | obrigatório, único no pedido; é o que `bases[].referencia` e `reflexosManuais[].principal` usam |
-| `expresso` | um dos 54 itens da lista acima | obrigatório |
+| `expresso` | um dos 54 itens da lista acima | obrigatório. Sem `dataDemissao` no cálculo, estes 10 são recusados (`400`), porque nascem com ocorrência Desligamento e o PJe-Calc não os cria: VALOR PAGO - NÃO TRIBUTÁVEL · VALOR PAGO - TRIBUTÁVEL · INDENIZAÇÃO ADICIONAL · INDENIZAÇÃO PIS - ABONO SALARIAL · MULTA CONVENCIONAL · MULTA DO ARTIGO 477 DA CLT · AVISO PRÉVIO · RESTITUIÇÃO / INDENIZAÇÃO DE DESPESA · SALDO DE EMPREITADA · SALDO DE SALÁRIO |
 | `descricao` | texto | obrigatório; a porta **normaliza** (tira espaços das pontas e põe em MAIÚSCULAS) e devolve o valor normalizado no resumo. **Unicidade só para verba endereçada** (alvo de `bases[]` do tipo `VERBA`, com algum `reflexos[X] = true` ou principal de `reflexosManuais`): a descrição dela não pode ser igual à de **nenhuma** outra verba do pedido (a tela a localiza pelo texto). Verba que ninguém endereça pode repetir a descrição — ex.: `CONTRIBUIÇÃO SOCIAL SALARIOS DEVIDOS` em `COMUM`/`MENSAL` e em `DECIMO_TERCEIRO_SALARIO`/`DEZEMBRO`, como em 6% dos cálculos de hoje |
 | `parcela` | `FIXA` · `VARIAVEL` | |
 | `valor` | `CALCULADO` · `INFORMADO` | obrigatório |
@@ -772,6 +772,7 @@ Vocabulário único: **o código do XML do `.PJC`**. Valor fora da lista → `40
 | `valorPago` | `{ tipo: INFORMADO \| CALCULADO, base, valor, quantidade, proporcionalidade, bases }` (`bases[].proporcionalizar` ausente = `false`) | `base` com os valores de `baseTabelada`; `quantidade` é o `RVLQUANTIDADE` da planilha |
 | `comentario` | texto | |
 | `reflexos` | `{ decimoTerceiro, ferias, aviso, repouso, art477, art467, separarFerias, horasExtras50, horasExtras100, gratificacaoAnual, gratificacaoSemestral, licencaPremio, apip, plr }` booleanos | `true` = marcar (ativar) o reflexo na principal; se o PJe-Calc não o oferecer, vale `reflexosManuais`. `false` ou ausente = **não mexer**: os reflexos que o PJe-Calc gera sozinho continuam lá, **desativados** (como nos `.PJC` de hoje); reflexo manual não é criado |
+| `reflexosFgts` | booleano | `true` = depois de marcar os reflexos, liga a incidência **FGTS** em cada reflexo **ativo** da principal (do Expresso e manuais), **menos férias + 1/3** (OJ 195). Ausente ou `false` = não mexe (o PJe-Calc cria os reflexos com FGTS desligado). Reflexo sem a caixa FGTS ou que não a mantém marcada interrompe a execução |
 
 **Invariante entre `baseTabelada` e `bases[]`** (recusado na porta se quebrado):
 - `baseTabelada = HISTORICO_SALARIAL` **se e somente se** houver ao menos um item `bases[]` com `tipo: HISTORICO`.

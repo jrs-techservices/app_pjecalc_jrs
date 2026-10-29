@@ -219,6 +219,12 @@ class Verbas:
 
         sleep(2)
 
+    def mensagem_de_erro_da_tela(self, driver):
+        """Texto da mensagem de erro do painel (vazio se não houver erro)."""
+        texto = driver.execute_script("""return [...document.querySelectorAll('[id^="formulario:painelMensagens"] table')]
+            .map(e => e.textContent.split('//<!')[0].trim().replace(/\\s+/g, ' ')).filter(t => t).join(' | ');""")
+        return texto if texto and "erro" in texto.lower() and "sucesso" not in texto.lower() else ""
+
     def _erros_de_campo(self, driver):
         erros = driver.execute_script("""return [...document.querySelectorAll('[id$="Erro"]')]
             .map(e => e.textContent.split('//<!')[0].trim()).filter(t => t);""")
@@ -1291,6 +1297,63 @@ class Verbas:
         }
         return null;"""
 
+    REFLEXOS_DA_VERBA = r"""const sufixo = ' SOBRE ' + arguments[0];
+        const spans = [...document.querySelectorAll('tbody[id$=":listaReflexo:tb"] td.colunaReflexo span')]
+            .filter(s => s.textContent.trim().toUpperCase().endsWith(sufixo));
+        if (!spans.length) return [];
+        const corpo = spans[0].closest('tbody');
+        if (!(corpo.offsetWidth || corpo.offsetHeight)) {
+            const lista = document.getElementById('formulario:listagem:tb');
+            const verba = lista && [...lista.rows].find(r => r.contains(corpo));
+            const botao = verba && verba.querySelector('.linkDestinacoes');
+            if (botao) botao.click();
+            return 'expandir';
+        }
+        return spans.map(s => { const linha = s.closest('tr'); const caixa = linha.querySelector('input[id$=":ativo"]');
+            const link = linha.querySelector('a.linkParametrizar');
+            return {nome: s.textContent.trim(), ativo: !!(caixa && caixa.checked), link: link ? link.id : null}; });"""
+
+    def _reflexos_da_verba(self, driver, snmdescricaoverba):
+        for _ in range(3):
+            achados = driver.execute_script(self.REFLEXOS_DA_VERBA, snmdescricaoverba.strip().upper())
+            if achados != 'expandir':
+                return achados
+            self.objTools.aguardar_carregamento(driver)
+            sleep(1)
+        return []
+
+    def ligar_fgts_dos_reflexos(self, driver, snmdescricaoverba):
+        """Abre o Parametrizar de cada reflexo ativo da verba (menos os de férias: OJ 195) e liga a incidência FGTS.
+        Reflexo onde a caixa não existe ou não fica marcada interrompe com o nome dele."""
+        from Calculo.verbas_reflexa import VerbaReflexa
+        alvos = [r['nome'] for r in self._reflexos_da_verba(driver, snmdescricaoverba)
+                 if r['ativo'] and 'FÉRIAS' not in r['nome'].upper()]
+        print(f"- [FGTS nos reflexos] {snmdescricaoverba}: {alvos or 'nenhum reflexo ativo além de férias'}")
+        for nome in alvos:
+            reflexo = next((r for r in self._reflexos_da_verba(driver, snmdescricaoverba) if r['nome'] == nome), None)
+            if not reflexo or not reflexo['link']:
+                interromper("Verbas", f"FGTS nos reflexos: '{nome}' sem o link Parametrizar na lista")
+                return
+            driver.execute_script("arguments[0].click();", driver.find_element(By.ID, reflexo['link']))
+            self.objTools.aguardar_carregamento(driver)
+            sleep(2)
+            caixas = driver.find_elements(By.ID, "formulario:fgts")
+            if not caixas or not caixas[0].is_displayed():
+                interromper("Verbas", f"FGTS nos reflexos: '{nome}' sem a caixa FGTS (o PJe-Calc a esconde quando o reflexo não compõe o principal)")
+                return
+            if not caixas[0].is_selected():
+                driver.execute_script("arguments[0].click();", caixas[0])
+                self.objTools.aguardar_carregamento(driver)
+                sleep(1)
+            if not driver.find_element(By.ID, "formulario:fgts").is_selected():
+                interromper("Verbas", f"FGTS nos reflexos: a caixa FGTS de '{nome}' não ficou marcada")
+                return
+            self.selecionar_btnSalvarOperacao(driver)
+            self.objTools.aguardar_carregamento(driver)
+            sleep(2)
+            self.verificacao_2_new_parcelaReflexa(driver)
+            print(f"- [FGTS nos reflexos] '{nome}': FGTS ligado")
+
     def parametrizar_reflexos_do_expresso(self, driver, iidverbajrs, snmdescricaoverba, marcados):
         """reflexosManuais do .json para reflexo que o Expresso já oferece: o robô liga o do Expresso (marcar_*) e aqui
         abre o "Parametrizar" dele e aplica a linha da TBREFLEXA (nome, assunto CNJ, parcela, incidências, divisor,
@@ -2352,6 +2415,7 @@ class Verbas:
                 sflreflexoapipColumn = ""
                 sflreflexoplr = ""
                 sflreflexoplrColumn = ""
+                sflreflexosfgts = ""
 
                 self.acessarExpresso(driver)
                 self.objTools.aguardar_carregamento(driver)
@@ -2382,6 +2446,12 @@ class Verbas:
                         self.salvarOperacao(driver)
                         self.objTools.aguardar_carregamento(driver)
                         sleep(delayG)
+                        # o PJe-Calc pode recusar criar a verba (ex.: Expresso que nasce com ocorrência Desligamento num
+                        # cálculo sem data de demissão — 17583); sem isto, o passo seguinte esgotava o tempo sem motivo
+                        recusa = self.mensagem_de_erro_da_tela(driver)
+                        if recusa:
+                            interromper("Verbas", f"o PJe-Calc recusou lançar o Expresso '{dado}': {recusa}")
+                            return
                         self.acessarParametrosVerba(driver)
                         self.objTools.aguardar_carregamento(driver)
                         sleep(delayG)
@@ -2696,6 +2766,9 @@ class Verbas:
                         sflreflexoplrColumn = vc
                         print("- SFLREFLEXOPLR: ", sflreflexoplr)
                         continue
+                    if vc == 'SFLREFLEXOSFGTS':
+                        sflreflexosfgts = dado
+                        continue
 
 
                     self.objTools.limparFilesTemp()
@@ -3004,6 +3077,10 @@ class Verbas:
                             "SFLREFLEXO13TERCEIRO": sflreflexo13terceiro, "SFLREFLEXOFERIAS": sflreflexoferias,
                             "SFLREFLEXOAVISO": sflreflexoaviso, "SFLREFLEXOREPOUSO": sflreflexorepouso,
                             "SFLREFLEXOART477CLT": sflreflexoart477clt, "SFLREFLEXOART467CLT": sflreflexoart467clt})
+
+                        # reflexosFgts do .json: FGTS em cada reflexo ativo da principal, menos férias + 1/3 (OJ 195)
+                        if sflreflexosfgts == 'S':
+                            self.ligar_fgts_dos_reflexos(driver, snmdescricaoverba)
 
                 sleep(1.5)
 

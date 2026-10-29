@@ -84,6 +84,7 @@ COLUNAS_VERBA = [
     "RVLINOUTROVALOR", "SFLVPGPROPORCIONALIDADE", "RVLQUANTIDADE", "SDSCOMENTARIO", "STPCOMPORTAMENTOREFLEXO",
     "STPPERIODOMEDIAREFLEXO", "STPTRATAMENTOFRACAOMESREFLEXO", "SFLSEPARARFERIAS", "SFLREFLEXOHEXTRAS50",
     "SFLREFLEXOHEXTRAS100", "SFLREFLEXOGANUAL", "SFLREFLEXOGSEMESTRAL", "SFLREFLEXOLPREMIO", "SFLREFLEXOAPIP", "SFLREFLEXOPLR",
+    "SFLREFLEXOSFGTS",  # só nesta planilha: FGTS nos reflexos ativos (menos férias), do reflexosFgts do .json
 ]
 COLUNAS_REFLEXA = [
     "IIDVERBAREFLEXA", "SNMVERBAREFLEXA", "SNMVERBAEXPRESSOPJECALC", "SNMDESCRICAOVERBAREFLEXA", "ICDASSUNTO", "STPPARCELA",
@@ -248,6 +249,16 @@ def _coluna_do_cartao(ler, campo, tipo):
     return "|".join(" ".join(c.split()) for c in lista)
 
 
+# Expressos que nascem com ocorrência Desligamento: num cálculo sem data de demissão o PJe-Calc 2.16 recusa criá-los
+# ("Para a ocorrência de desligamento, a data de demissão deve ser informada nos parâmetros do cálculo"); sonda de
+# 29/10/2026 com os 54 Expressos (17583).
+EXPRESSOS_DE_DESLIGAMENTO = {
+    "VALOR PAGO - NÃO TRIBUTÁVEL", "VALOR PAGO - TRIBUTÁVEL", "INDENIZAÇÃO ADICIONAL", "INDENIZAÇÃO PIS - ABONO SALARIAL",
+    "MULTA CONVENCIONAL", "MULTA DO ARTIGO 477 DA CLT", "AVISO PRÉVIO", "RESTITUIÇÃO / INDENIZAÇÃO DE DESPESA",
+    "SALDO DE EMPREITADA", "SALDO DE SALÁRIO",
+}
+
+
 def _conferir_prescricao(ler, inicio):
     """Com a prescrição quinquenal, o PJe-Calc recusa a verba que começa antes de 5 anos do ajuizamento: "A data de início
     informada não pode ser anterior à data da prescrição quinquenal (5 anos antes da Data do Ajuizamento)" (17584, 28/10/2026)."""
@@ -396,6 +407,10 @@ def interpretar_verbas(r):
             continue
         if item["expresso"] not in EXPRESSO:
             ler.erro("expresso", "não está na lista do Lançamento Expresso do PJe-Calc", EXPRESSO)
+        elif item["expresso"] in EXPRESSOS_DE_DESLIGAMENTO and not r.valores.get("data_rescisao"):
+            ler.erro("expresso", "este Expresso nasce com ocorrência Desligamento e o PJe-Calc recusa criá-lo sem data de "
+                                 "demissão (dadosDoCalculo.dataDemissao): informe a demissão ou use outro Expresso",
+                     sorted(EXPRESSOS_DE_DESLIGAMENTO))
         descricao = _descricao(r, ler)
         if not descricao:
             ler.erro("descricao", "obrigatória")
@@ -403,6 +418,11 @@ def interpretar_verbas(r):
                  "STPTIPOVERBA": "P"}
         valor, caracteristica, _ = _parametros_comuns(ler, linha)
         marcados_por_id[ident] = _reflexos(ler, linha)
+        # reflexosFgts: liga a incidência FGTS em cada reflexo ativo da principal, menos férias + 1/3 (OJ 195)
+        fgts_reflexos = ler.booleano("reflexosFgts")
+        linha["SFLREFLEXOSFGTS"] = _sn(fgts_reflexos)
+        if fgts_reflexos and not marcados_por_id[ident]:
+            r.avisos.append(f"{base}.reflexosFgts: a verba não marca nenhum reflexo; não há onde ligar o FGTS")
         if "separarFerias" in marcados_por_id[ident] and "ferias" not in marcados_por_id[ident]:
             ler.erro("reflexos.separarFerias", "separarFerias precisa de reflexos.ferias = true (separa o terço do reflexo de férias)")
 
