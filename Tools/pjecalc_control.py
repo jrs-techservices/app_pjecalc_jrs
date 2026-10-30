@@ -94,14 +94,58 @@ class Control:
         # except TimeoutException:
         #     pass
 
-    # - New
-    def aguardar_carregamento(self, driver):
+    # Conta as requisições ajax da página (o PJe-Calc é RichFaces/A4J: XMLHttpRequest). Instalado na 1ª espera de cada página.
+    CONTADOR_AJAX = r"""if (!window.__ajaxContador) {
+        window.__ajaxPendentes = 0; window.__ajaxContador = true;
+        const enviar = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.send = function () {
+            window.__ajaxPendentes++;
+            this.addEventListener('loadend', () => { window.__ajaxPendentes = Math.max(0, window.__ajaxPendentes - 1); });
+            return enviar.apply(this, arguments);
+        };
+        return true;
+    }
+    return false;"""
+    PAGINA_PRONTA = r"""const a = document.getElementById('formulario:msgAguardeContentTable');
+        const aguarde = !!(a && (a.offsetWidth || a.offsetHeight) && getComputedStyle(a).visibility !== 'hidden');
+        return document.readyState === 'complete' && !aguarde && (window.__ajaxPendentes || 0) === 0;"""
+
+    def _aguardar_classico(self, driver):
         try:
             while WebDriverWait(driver, 3).until(EC.visibility_of_element_located((By.ID, 'formulario:msgAguardeContentTable'))):
                 print("...", end="")
                 time.sleep(1)
         except TimeoutException:
             time.sleep(1)
+
+    def aguardar_carregamento(self, driver):
+        """Espera a tela ficar pronta: sem a janela "Aguarde", sem ajax pendente e com a página carregada, estável por 0,4 s.
+        Antes, cada chamada esperava até 3 s a janela aparecer e mais 1 s (~4 s mesmo com a tela pronta; ~10 min por
+        cálculo). Na 1ª chamada de cada página o contador de ajax acaba de ser instalado e não veria um pedido já em curso:
+        essa usa a espera antiga. AGUARDAR_CLASSICO=1 volta ao comportamento antigo em todas."""
+        if os.environ.get("AGUARDAR_CLASSICO") == "1":
+            return self._aguardar_classico(driver)
+        try:
+            instalou_agora = driver.execute_script(self.CONTADOR_AJAX)
+        except Exception:
+            return self._aguardar_classico(driver)
+        if instalou_agora:
+            return self._aguardar_classico(driver)
+        limite = time.time() + 60
+        estavel_desde = None
+        while time.time() < limite:
+            try:
+                pronta = driver.execute_script(self.PAGINA_PRONTA)
+            except Exception:
+                pronta = False  # página trocando: espera
+            if pronta:
+                estavel_desde = estavel_desde or time.time()
+                if time.time() - estavel_desde >= 0.4:
+                    return
+            else:
+                estavel_desde = None
+                print("...", end="")
+            time.sleep(0.1)
 
 
     def remover_filesDiretorioProcesso(self, diretorio):
