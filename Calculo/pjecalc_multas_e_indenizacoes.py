@@ -402,6 +402,10 @@ class MultasIndenizacoes:
         raise RuntimeError("a listagem de multas não esvaziou depois de 50 exclusões")
 
     def main_multas_indenizacoes(self, driver):
+        from Calculo.leitura_planilha import tela_tem_lancamento
+        if not tela_tem_lancamento(self.planilha_base, ("multas_indenizacoes_",), {"multas_indenizacoes_qtd"}):
+            print("- [Multas e Indenizações]: o pedido não traz multas; tela não aberta")
+            return
         # Falha no meio: exclui o que já foi salvo e repete uma vez (repetir sem excluir duplicava as multas);
         # na 2ª falha, interrompe: o cálculo sairia sem parte das multas.
         for tentativa in (1, 2):

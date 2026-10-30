@@ -55,6 +55,22 @@ def booleano_da_planilha(valor):
     return None
 
 
+def tela_tem_lancamento(planilha, prefixos, chaves_quantidade):
+    """A PJE-BD traz algo para a tela? Sim se alguma quantidade for > 0 ou se alguma outra chave com um dos prefixos tiver
+    valor. Serve para não abrir Multas/Honorários quando o pedido não traz nada delas (a tela ficaria igual)."""
+    for chave, valor in zip(planilha['IDENTIFICADOR'], planilha['INFORMACAO']):
+        if not isinstance(chave, str):
+            continue
+        chave = chave.strip()
+        if chave in chaves_quantidade:
+            numero = numero_da_planilha(valor)
+            if numero is not None and numero > 0:
+                return True
+        elif chave.startswith(prefixos) and not valor_vazio(valor):
+            return True
+    return False
+
+
 def numero_da_planilha(valor):
     if isinstance(valor, bool) or valor_vazio(valor):
         return None

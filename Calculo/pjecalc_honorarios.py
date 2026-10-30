@@ -752,6 +752,11 @@ class Honorarios(DadosCalculo):
 
     def main_honorarios(self, driver):
 
+        from Calculo.leitura_planilha import tela_tem_lancamento
+        if not tela_tem_lancamento(self.planilha_base, ("honorarios_",),
+                                   {"qtd_honorarios_periciais", "qtd_honorarios_contratuais", "qtd_honorarios_sucumbenciais"}):
+            print("- [Honorários]: o pedido não traz honorários; tela não aberta")
+            return
         self.acessar_horonarios(driver)
         self.objTools.aguardar_carregamento(driver)
         # Tempo de controle
