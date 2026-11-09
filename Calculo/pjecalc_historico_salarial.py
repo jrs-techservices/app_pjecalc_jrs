@@ -1,7 +1,7 @@
 from Tools.pendencias import de_relatorio
 from selenium.webdriver.support.wait import WebDriverWait, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoAlertPresentException
+from selenium.common.exceptions import NoAlertPresentException, ElementClickInterceptedException
 from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver import ActionChains
@@ -1206,6 +1206,22 @@ class HistoricoSalarial:
     def mensagem_de_sucesso(self, driver):
         return 'Operação realizada com sucesso' in self.texto_das_mensagens(driver)
 
+    def confirmar_importacao(self, driver):
+        """Clica no Confirmar do arquivo; se a máscara do "Aguarde" ainda cobre a tela (o envio do arquivo não é ajax e a
+        máscara pode voltar depois da espera), espera de novo e tenta outra vez."""
+        for tentativa in range(5):
+            botao = WebDriverWait(driver, self.delay).until(
+                EC.element_to_be_clickable((By.XPATH, "//input[@value='Confirmar' and @type='button']")))
+            try:
+                botao.click()
+                return
+            except ElementClickInterceptedException:
+                if tentativa == 4:
+                    raise
+                print(f"- [Histórico Salarial] Confirmar coberto pelo 'Aguarde'; nova espera ({tentativa + 1})")
+                self.objTools.aguardar_carregamento(driver)
+                time.sleep(1)
+
     def importar_csv(self, driver, nome, caminho):
         """Histórico Salarial > Novo: nome, parcela variável, importa o .csv (o PJe-Calc preenche as competências e as incidências) e salva."""
         print(f"- [Histórico Salarial] importando '{nome}' de {caminho}")
@@ -1224,8 +1240,7 @@ class HistoricoSalarial:
             driver.find_element(By.ID, 'formulario:arquivo:file').send_keys(local)
             time.sleep(self.delayG)
             self.objTools.aguardar_carregamento(driver)
-            WebDriverWait(driver, self.delay).until(
-                EC.element_to_be_clickable((By.XPATH, "//input[@value='Confirmar' and @type='button']"))).click()
+            self.confirmar_importacao(driver)
             self.objTools.aguardar_carregamento(driver)
             time.sleep(self.delayG)
             if not self.mensagem_de_sucesso(driver):

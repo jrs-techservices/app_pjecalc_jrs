@@ -97,6 +97,7 @@ class Control:
     # Conta as requisições ajax da página (o PJe-Calc é RichFaces/A4J: XMLHttpRequest). Instalado na 1ª espera de cada página.
     CONTADOR_AJAX = r"""if (!window.__ajaxContador) {
         window.__ajaxPendentes = 0; window.__ajaxContador = true;
+        window.addEventListener('beforeunload', () => { window.__saindoEm = Date.now(); });
         const enviar = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.send = function () {
             window.__ajaxPendentes++;
@@ -106,9 +107,14 @@ class Control:
         return true;
     }
     return false;"""
-    PAGINA_PRONTA = r"""const a = document.getElementById('formulario:msgAguardeContentTable');
-        const aguarde = !!(a && (a.offsetWidth || a.offsetHeight) && getComputedStyle(a).visibility !== 'hidden');
-        return document.readyState === 'complete' && !aguarde && (window.__ajaxPendentes || 0) === 0;"""
+    # a caixa do "Aguarde" e a máscara escura que cobre a tela (no envio de arquivo a máscara fica sem a caixa); e a página
+    # que já pediu outra (o salvar do Dados do Cálculo responde com redirecionamento: sem ajax pendente, a página antiga parece
+    # pronta até a nova chegar). O limite de 30 s cobre um download, que dispara o beforeunload sem trocar de página.
+    PAGINA_PRONTA = r"""const aguarde = ['formulario:msgAguardeContentTable', 'formulario:msgAguardeDiv'].some(id => {
+            const a = document.getElementById(id);
+            return !!(a && (a.offsetWidth || a.offsetHeight) && getComputedStyle(a).visibility !== 'hidden'); });
+        const saindo = window.__saindoEm && Date.now() - window.__saindoEm < 30000;
+        return document.readyState === 'complete' && !aguarde && !saindo && (window.__ajaxPendentes || 0) === 0;"""
 
     def _aguardar_classico(self, driver):
         try:
