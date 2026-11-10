@@ -117,8 +117,17 @@ class DadosCalculo:
             gerar_relatorio("Dados do Cálculo", "--", "Ok")
         else:
             print("- Alerta de verificação: ", alertaMensagem)
-            elementos_error = WebDriverWait(driver, 3).until(
-                EC.visibility_of_all_elements_located((By.CLASS_NAME, 'linkErro')))
+            try:
+                elementos_error = WebDriverWait(driver, 3).until(
+                    EC.visibility_of_all_elements_located((By.CLASS_NAME, 'linkErro')))
+            except TimeoutException:
+                # recusa só na faixa vermelha, sem lista de campos (ex.: "A prescrição do FGTS não pode ser aplicada..."):
+                # devolve a frase da faixa em vez de estourar
+                frase = " ".join(alertaMensagem.split()).removeprefix("Erro.").strip() or "o PJe-Calc não salvou, sem mensagem"
+                gerar_relatorio("Dados do Cálculo", frase, "---------- Erro! ----------")
+                de_relatorio("Dados do Cálculo", frase)
+                pa.alert(title="Rôberto", text="Erro! Dados do Cálculo: o PJe-Calc recusou salvar: " + frase)
+                exit()
             for erro in elementos_error:
                 erroUtil = erro.get_attribute("textContent")
                 erroUtil = erroUtil.split("//<![")
